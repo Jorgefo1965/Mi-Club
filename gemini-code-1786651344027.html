@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lo Arcaya Pro v2.0 - Club Ecuestre (Nube Supabase)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SDK Oficial Supabase en Tiempo Real -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        hipo: {
+                            bg: '#0d1410',
+                            card: '#15201a',
+                            cardLight: '#23332a',
+                            accent: '#7a9e85',
+                            accentHover: '#5e7d67',
+                            border: '#2c3e33',
+                            textMuted: '#8a9e90',
+                            success: '#10b981',
+                            warning: '#f59e0b',
+                            danger: '#ef4444',
+                            purple: '#a855f7'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0d1410; color: white; -webkit-tap-highlight-color: transparent; font-family: system-ui, -apple-system, sans-serif; }
+        .bottom-nav-active { color: #7a9e85 !important; border-top: 2px solid #7a9e85; background-color: rgba(122, 158, 133, 0.08); }
+        .role-btn-active { background-color: #7a9e85 !important; color: #0d1410 !important; font-weight: 800; }
+        select, input, textarea { background-color: #0d1410 !important; border-color: #2c3e33 !important; color: white !important; }
+        .modal-backdrop { background-color: rgba(13, 20, 16, 0.88); backdrop-filter: blur(4px); }
+    </style>
+</head>
+<body class="pb-20 pt-2 px-3 md:px-6 font-sans antialiased text-slate-100">
+
+    <div class="max-w-4xl mx-auto space-y-3">
+
+        <!-- CABECERA MÓVIL CON LOGO Y ESTADO NUBE -->
+        <header class="bg-hipo-card p-3 rounded-2xl border border-hipo-border flex items-center justify-between shadow-lg">
+            <div class="flex items-center gap-3">
+                <img src="logo.png" alt="Lo Arcaya" class="w-10 h-10 rounded-full object-cover shadow-md shrink-0 border border-hipo-border/60">
+                <div>
+                    <div class="flex items-center gap-1.5">
+                        <h1 class="text-base font-black text-white tracking-tight leading-none">Lo Arcaya</h1>
+                        <span id="cloudStatus" class="w-2 h-2 rounded-full bg-hipo-success inline-block shadow-[0_0_8px_#10b981]" title="Conectado a la Nube"></span>
+                    </div>
+                    <span class="text-[10px] text-hipo-textMuted font-medium">Club Ecuestre • Nube Activa</span>
+                </div>
+            </div>
+
+            <!-- BOTÓN CAMBIO ROL -->
+            <button id="btnToggleRoleModal" class="bg-hipo-accent/20 text-hipo-accent border border-hipo-accent/40 text-xs px-2.5 py-1.5 rounded-xl font-bold flex items-center gap-1">
+                <span id="lblCurrentRoleIcon">👑</span> <span id="lblCurrentRoleText">Admin</span>
+            </button>
+        </header>
+
+        <!-- BANNER DE PERFIL PRIVADO -->
+        <div id="roleBanner" class="bg-hipo-accent/10 border border-hipo-accent/30 p-2.5 rounded-xl text-xs flex items-center justify-between">
+            <span id="roleBannerText" class="font-bold text-hipo-accent text-[11px]">👑 Modo Admin: Control Total (Base de Datos Sincronizada)</span>
+            <span class="text-[9px] bg-hipo-accent text-hipo-bg font-extrabold px-2 py-0.5 rounded-md uppercase">NUBE EN VIVO</span>
+        </div>
+
+        <!-- MÓDULO 1: DASHBOARD -->
+        <main id="secDash" class="space-y-3">
+            <div class="grid grid-cols-2 gap-2.5">
+                <div class="bg-hipo-card p-3 rounded-2xl border border-hipo-border">
+                    <span class="text-[10px] text-hipo-textMuted uppercase font-bold block">Caballos Nube</span>
+                    <span id="dashHorseCount" class="text-xl font-black text-white">...</span>
+                    <span class="text-[9px] text-hipo-accent block">Sincronizado</span>
+                </div>
+                <div class="bg-hipo-card p-3 rounded-2xl border border-hipo-border">
+                    <span class="text-[10px] text-hipo-textMuted uppercase font-bold block">Clases Hoy</span>
+                    <span id="dashClassCount" class="text-xl font-black text-white">...</span>
+                    <span class="text-[9px] text-hipo-success block">Pista del Club</span>
+                </div>
+                <div class="bg-hipo-card p-3 rounded-2xl border border-hipo-border">
+                    <span class="text-[10px] text-hipo-textMuted uppercase font-bold block">Herrajes Urgentes</span>
+                    <span id="dashUrgentShoe" class="text-xl font-black text-hipo-warning">...</span>
+                    <span class="text-[9px] text-hipo-warning block">&le; 3 Días</span>
+                </div>
+                <div class="bg-hipo-card p-3 rounded-2xl border border-hipo-border">
+                    <span class="text-[10px] text-hipo-textMuted uppercase font-bold block">Próx. Concurso</span>
+                    <span class="text-sm font-bold text-white truncate block">CSO Polo</span>
+                    <span class="text-[9px] text-hipo-purple block">Camión Lleno (6/6)</span>
+                </div>
+            </div>
+
+            <div class="bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-2">
+                <h3 class="text-xs font-bold text-hipo-accent border-b border-hipo-border pb-1.5 flex items-center justify-between">
+                    <span>📅 Clases & Montas de Hoy</span>
+                    <span class="text-[10px] bg-hipo-accent/20 text-hipo-accent px-2 py-0.5 rounded-md">Pista Única</span>
+                </h3>
+                <div id="dashTodayClasses" class="space-y-2 text-xs">
+                    <div class="text-hipo-textMuted text-center py-2 text-[11px]">Cargando desde Supabase...</div>
+                </div>
+            </div>
+
+            <div class="bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-2">
+                <h3 class="text-xs font-bold text-hipo-warning border-b border-hipo-border pb-1.5 flex items-center justify-between">
+                    <span>⚠️ Alertas de Salud & Herrajes</span>
+                </h3>
+                <div id="dashHealthAlerts" class="space-y-2 text-xs"></div>
+            </div>
+        </main>
+
+        <!-- MÓDULO PESEBRERA / ORDENANZA -->
+        <main id="secOrdenanza" class="space-y-3 hidden">
+            <div class="bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-3">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <div>
+                        <h2 class="font-bold text-xs text-hipo-accent flex items-center gap-1.5"><span>⏰</span> Programa de Monta Diaria (Pista)</h2>
+                        <span class="text-[10px] text-hipo-textMuted">Toca para avisar que el caballo está ensillado</span>
+                    </div>
+                </div>
+
+                <div class="space-y-2" id="ordenanzaRidingList"></div>
+            </div>
+
+            <div class="bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-3">
+                <div class="border-b border-hipo-border pb-2">
+                    <h2 class="font-bold text-xs text-hipo-warning flex items-center gap-1.5"><span>🌾</span> Pauta de Alimentación por Box</h2>
+                    <span class="text-[10px] text-hipo-textMuted">Raciones del día sincronizadas en tiempo real</span>
+                </div>
+
+                <div class="space-y-2" id="ordenanzaFeedList"></div>
+            </div>
+        </main>
+
+        <!-- MÓDULO 2: CUADRA -->
+        <main id="secHorses" class="space-y-3 hidden">
+            <div class="grid grid-cols-3 gap-1 bg-hipo-card p-1.5 rounded-xl border border-hipo-border text-xs">
+                <button id="filterAllHorses" class="py-1.5 rounded-lg font-bold bg-hipo-accent text-hipo-bg">Todos</button>
+                <button id="filterParticularHorses" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted">Particulares</button>
+                <button id="filterSchoolHorses" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted">Escuela</button>
+            </div>
+
+            <input type="text" id="searchHorse" placeholder="🔍 Buscar caballo o dueño..." class="w-full p-2.5 rounded-xl text-xs border">
+
+            <div id="horsesGrid" class="space-y-3"></div>
+        </main>
+
+        <!-- MÓDULO 3: AGENDA DE CLASES -->
+        <main id="secAgenda" class="space-y-3 hidden">
+            <button id="btnOpenClassModal" class="w-full bg-hipo-accent hover:bg-hipo-accentHover text-hipo-bg py-3 rounded-xl font-extrabold text-xs shadow-lg flex items-center justify-center gap-2">
+                <span>➕</span> Agendar Nueva Clase / Monta
+            </button>
+
+            <div id="agendaList" class="space-y-2.5"></div>
+        </main>
+
+        <!-- MÓDULO 4: CAMIÓN & CONCURSOS -->
+        <main id="secTruck" class="space-y-3 hidden">
+            <div class="bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-3">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <div>
+                        <h2 class="font-bold text-xs text-hipo-purple flex items-center gap-1.5"><span>🚚</span> Logística de Camión: CSO Club de Polo</h2>
+                        <span class="text-[10px] text-hipo-textMuted">Fecha: 22 Agosto • Embarque: 07:00 hrs • Chófer: Carlos M.</span>
+                    </div>
+                    <span class="bg-hipo-purple/20 text-hipo-purple text-[10px] font-bold px-2 py-0.5 rounded-md">6/6 Puestos</span>
+                </div>
+
+                <div class="p-2.5 bg-hipo-bg border border-hipo-border rounded-xl text-[11px] text-hipo-textMuted">
+                    <strong class="text-white block font-bold mb-0.5">📌 Instrucciones de Transporte:</strong>
+                    Uso obligatorio de protectores altos de viaje y cañeras. Fardos de viaje colgados en red.
+                </div>
+
+                <div class="grid grid-cols-1 gap-2" id="truckSlots"></div>
+            </div>
+        </main>
+
+        <!-- MÓDULO 5: CUENTAS (BLOQUEADO STRICTAMENTE PARA ORDENANZA Y PROFESOR) -->
+        <main id="secFinance" class="space-y-3 hidden">
+            <div class="bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-2">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h2 id="financeTitle" class="font-bold text-xs text-hipo-success">💰 Estado de Cuentas - Lo Arcaya</h2>
+                    <button id="btnAddCharge" class="text-[10px] bg-hipo-success/20 text-hipo-success px-2 py-1 rounded-lg border border-hipo-success/30 font-bold">+ Cobro</button>
+                </div>
+                <div id="financeContent" class="space-y-2"></div>
+            </div>
+        </main>
+
+        <!-- BARRA DE NAVEGACIÓN INFERIOR -->
+        <nav class="fixed bottom-0 left-0 right-0 bg-hipo-card/95 backdrop-blur-md border-t border-hipo-border py-1.5 px-2 flex items-center justify-around z-40">
+            <button id="navDash" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[10px] font-bold bottom-nav-active py-1 px-2 rounded-lg">
+                <span class="text-base">📊</span>
+                <span>Inicio</span>
+            </button>
+            <button id="navOrdenanza" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[10px] font-bold py-1 px-2 rounded-lg hidden">
+                <span class="text-base">🧹</span>
+                <span>Pesebrera</span>
+            </button>
+            <button id="navHorses" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[10px] font-bold py-1 px-2 rounded-lg">
+                <span class="text-base">🐎</span>
+                <span>Cuadra</span>
+            </button>
+            <button id="navAgenda" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[10px] font-bold py-1 px-2 rounded-lg">
+                <span class="text-base">📅</span>
+                <span>Clases</span>
+            </button>
+            <button id="navTruck" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[10px] font-bold py-1 px-2 rounded-lg">
+                <span class="text-base">🚚</span>
+                <span>Camión</span>
+            </button>
+            <button id="navFinance" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[10px] font-bold py-1 px-2 rounded-lg">
+                <span class="text-base">💰</span>
+                <span>Cuentas</span>
+            </button>
+        </nav>
+
+        <!-- MODAL FICHA DETALLADA DE CABALLO -->
+        <div id="horseDetailModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-md rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <div>
+                        <h3 id="modalDetailName" class="text-base font-black text-white">Nombre</h3>
+                        <span id="modalDetailBox" class="text-xs text-hipo-accent font-bold">Box</span>
+                    </div>
+                    <button id="btnCloseHorseDetailModal" class="text-hipo-textMuted text-xl font-bold">&times;</button>
+                </div>
+
+                <div class="bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-2 text-xs">
+                    <span class="text-hipo-accent font-bold uppercase text-[10px] block border-b border-hipo-border/50 pb-1">🩺 Control de Salud & Herraje</span>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <span class="text-hipo-textMuted block text-[10px]">Próximo Herraje:</span>
+                            <strong id="modalDetailShoeing" class="text-white text-xs">-</strong>
+                        </div>
+                        <div>
+                            <span class="text-hipo-textMuted block text-[10px]">Tipo Herradura:</span>
+                            <strong id="modalDetailShoeType" class="text-white text-xs">-</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-2 text-xs">
+                    <span class="text-hipo-warning font-bold uppercase text-[10px] block border-b border-hipo-border/50 pb-1">🌾 Ración & Alimentación</span>
+                    <div class="space-y-1 text-hipo-textMuted">
+                        <div class="flex justify-between">
+                            <span>Mañana:</span>
+                            <strong id="modalDetailFeedM" class="text-white">-</strong>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Tarde:</span>
+                            <strong id="modalDetailFeedT" class="text-white">-</strong>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Noche:</span>
+                            <strong id="modalDetailFeedN" class="text-white">-</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-1 text-xs">
+                    <span class="text-hipo-purple font-bold uppercase text-[10px] block">📝 Notas de Manejo & Cuidados</span>
+                    <p id="modalDetailNotes" class="text-slate-300 text-[11px] leading-relaxed">-</p>
+                </div>
+
+                <button id="btnCloseHorseDetailModalBottom" class="w-full bg-hipo-cardLight hover:bg-hipo-border text-white font-bold p-2.5 rounded-xl text-xs transition-colors">
+                    Cerrar Ficha
+                </button>
+            </div>
+        </div>
+
+        <!-- MODAL CAMBIO DE PERFIL -->
+        <div id="roleModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-4">
+            <div class="bg-hipo-card w-full max-w-xs rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 class="text-xs font-bold text-white">🛡️ Cambiar Perfil (Simulación)</h3>
+                    <button id="btnCloseRoleModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+                <div class="space-y-2 text-xs">
+                    <button id="roleSelectAdmin" class="w-full p-2.5 rounded-xl border border-hipo-border text-left font-bold role-btn-active">
+                        👑 Administrador (Acceso Total)
+                    </button>
+                    <button id="roleSelectProfe" class="w-full p-2.5 rounded-xl border border-hipo-border text-left font-bold text-hipo-textMuted">
+                        🎓 Profesor (Clases y Pista)
+                    </button>
+                    <button id="roleSelectOrdenanza" class="w-full p-2.5 rounded-xl border border-hipo-border text-left font-bold text-hipo-textMuted">
+                        🧹 Ordenanza (Pesebrera & Camión)
+                    </button>
+                    <button id="roleSelectClient" class="w-full p-2.5 rounded-xl border border-hipo-border text-left font-bold text-hipo-textMuted">
+                        🐴 Socio / Alumno (Vista Privada)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL AGENDAR CLASE -->
+        <div id="classModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-4">
+            <div class="bg-hipo-card w-full max-w-sm rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 class="text-xs font-bold text-white">📅 Agendar Clase / Monta (Nube)</h3>
+                    <button id="btnCloseClassModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+
+                <form id="classForm" class="space-y-2.5 text-xs">
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1">Alumno / Jinete</label>
+                        <input type="text" id="modalStudent" placeholder="Nombre alumno o dueño" required class="w-full p-2 rounded-xl text-xs">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1">Hora</label>
+                            <select id="modalTime" class="w-full p-2 rounded-xl text-xs">
+                                <option value="15:00 hrs">15:00 hrs</option>
+                                <option value="16:00 hrs" selected>16:00 hrs</option>
+                                <option value="16:30 hrs">16:30 hrs</option>
+                                <option value="17:00 hrs">17:00 hrs</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1">Tipo / Profesor</label>
+                            <select id="modalProfe" class="w-full p-2 rounded-xl text-xs">
+                                <option value="Prof. Fernando R.">Clase (Prof. Fernando)</option>
+                                <option value="Prof. Sofia K.">Clase (Prof. Sofia)</option>
+                                <option value="Monta Particular">Monta Particular</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1">Caballo</label>
+                        <select id="modalHorseSelect" class="w-full p-2 rounded-xl text-xs font-bold text-hipo-accent">
+                        </select>
+                    </div>
+
+                    <button type="submit" class="w-full bg-hipo-accent text-hipo-bg font-black p-2.5 rounded-xl text-xs hover:bg-hipo-accentHover transition-colors mt-1">
+                        ✓ Sincronizar en la Nube
+                    </button>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // CONFIGURACIÓN OFICIAL DE TU PROYECTO SUPABASE
+        const SUPABASE_URL = "https://dvklysnihmioubsswxdw.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_4H8CuDflAdSxPSGdx3X4MQ_YQ-SbVPg";
+        const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let currentRole = 'admin';
+        let currentFilter = 'all';
+        let horses = [];
+        let classesList = [];
+
+        const dom = {
+            btnToggleRoleModal: document.getElementById('btnToggleRoleModal'),
+            roleModal: document.getElementById('roleModal'),
+            btnCloseRoleModal: document.getElementById('btnCloseRoleModal'),
+            roleSelectAdmin: document.getElementById('roleSelectAdmin'),
+            roleSelectProfe: document.getElementById('roleSelectProfe'),
+            roleSelectOrdenanza: document.getElementById('roleSelectOrdenanza'),
+            roleSelectClient: document.getElementById('roleSelectClient'),
+            lblCurrentRoleIcon: document.getElementById('lblCurrentRoleIcon'),
+            lblCurrentRoleText: document.getElementById('lblCurrentRoleText'),
+            roleBannerText: document.getElementById('roleBannerText'),
+            navDash: document.getElementById('navDash'),
+            navOrdenanza: document.getElementById('navOrdenanza'),
+            navHorses: document.getElementById('navHorses'),
+            navAgenda: document.getElementById('navAgenda'),
+            navTruck: document.getElementById('navTruck'),
+            navFinance: document.getElementById('navFinance'),
+            secDash: document.getElementById('secDash'),
+            secOrdenanza: document.getElementById('secOrdenanza'),
+            secHorses: document.getElementById('secHorses'),
+            secAgenda: document.getElementById('secAgenda'),
+            secTruck: document.getElementById('secTruck'),
+            secFinance: document.getElementById('secFinance'),
+            ordenanzaRidingList: document.getElementById('ordenanzaRidingList'),
+            ordenanzaFeedList: document.getElementById('ordenanzaFeedList'),
+            horsesGrid: document.getElementById('horsesGrid'),
+            dashTodayClasses: document.getElementById('dashTodayClasses'),
+            dashHealthAlerts: document.getElementById('dashHealthAlerts'),
+            dashHorseCount: document.getElementById('dashHorseCount'),
+            dashClassCount: document.getElementById('dashClassCount'),
+            dashUrgentShoe: document.getElementById('dashUrgentShoe'),
+            agendaList: document.getElementById('agendaList'),
+            truckSlots: document.getElementById('truckSlots'),
+            financeContent: document.getElementById('financeContent'),
+            financeTitle: document.getElementById('financeTitle'),
+            btnAddCharge: document.getElementById('btnAddCharge'),
+            filterAllHorses: document.getElementById('filterAllHorses'),
+            filterParticularHorses: document.getElementById('filterParticularHorses'),
+            filterSchoolHorses: document.getElementById('filterSchoolHorses'),
+            searchHorse: document.getElementById('searchHorse'),
+            btnOpenClassModal: document.getElementById('btnOpenClassModal'),
+            btnCloseClassModal: document.getElementById('btnCloseClassModal'),
+            classModal: document.getElementById('classModal'),
+            classForm: document.getElementById('classForm'),
+            modalStudent: document.getElementById('modalStudent'),
+            modalTime: document.getElementById('modalTime'),
+            modalProfe: document.getElementById('modalProfe'),
+            modalHorseSelect: document.getElementById('modalHorseSelect'),
+            horseDetailModal: document.getElementById('horseDetailModal'),
+            btnCloseHorseDetailModal: document.getElementById('btnCloseHorseDetailModal'),
+            btnCloseHorseDetailModalBottom: document.getElementById('btnCloseHorseDetailModalBottom'),
+            modalDetailName: document.getElementById('modalDetailName'),
+            modalDetailBox: document.getElementById('modalDetailBox'),
+            modalDetailShoeing: document.getElementById('modalDetailShoeing'),
+            modalDetailShoeType: document.getElementById('modalDetailShoeType'),
+            modalDetailFeedM: document.getElementById('modalDetailFeedM'),
+            modalDetailFeedT: document.getElementById('modalDetailFeedT'),
+            modalDetailFeedN: document.getElementById('modalDetailFeedN'),
+            modalDetailNotes: document.getElementById('modalDetailNotes')
+        };
+
+        async function fetchCloudData() {
+            try {
+                // Obtener Caballos desde Supabase
+                const { data: cData, error: cErr } = await db.from('caballos').select('*');
+                if (!cErr && cData) {
+                    horses = cData.map(h => ({
+                        id: h.id,
+                        name: h.nombre,
+                        type: h.tipo,
+                        owner: h.propietario,
+                        box: h.box,
+                        breed: h.raza,
+                        shoeingDays: h.dias_herraje,
+                        shoeType: h.tipo_herradura || '4 Estándar',
+                        feedM: h.rac_manana,
+                        feedT: h.rac_tarde,
+                        feedN: h.rac_noche,
+                        notes: h.notas,
+                        balance: Number(h.saldo || 0),
+                        fedT: false
+                    }));
+                }
+
+                // Obtener Clases desde Supabase
+                const { data: clData, error: clErr } = await db.from('clases').select('*').order('id', { ascending: false });
+                if (!clErr && clData) {
+                    classesList = clData.map(c => ({
+                        id: c.id,
+                        student: c.alumno,
+                        horse: c.caballo,
+                        box: c.box || 'Box',
+                        type: c.tipo,
+                        profe: c.profesor,
+                        time: c.hora,
+                        ready: c.listo
+                    }));
+                }
+            } catch (err) {
+                console.log("Modo Nube offline/fallback", err);
+            }
+            renderAll();
+        }
+
+        function init() {
+            setupEventListeners();
+            switchRole('admin');
+            fetchCloudData();
+        }
+
+        function setupEventListeners() {
+            dom.btnToggleRoleModal.addEventListener('click', () => dom.roleModal.classList.remove('hidden'));
+            dom.btnCloseRoleModal.addEventListener('click', () => dom.roleModal.classList.add('hidden'));
+
+            dom.btnCloseHorseDetailModal.addEventListener('click', () => dom.horseDetailModal.classList.add('hidden'));
+            dom.btnCloseHorseDetailModalBottom.addEventListener('click', () => dom.horseDetailModal.classList.add('hidden'));
+
+            dom.roleSelectAdmin.addEventListener('click', () => { switchRole('admin'); dom.roleModal.classList.add('hidden'); });
+            dom.roleSelectProfe.addEventListener('click', () => { switchRole('profe'); dom.roleModal.classList.add('hidden'); });
+            dom.roleSelectOrdenanza.addEventListener('click', () => { switchRole('ordenanza'); dom.roleModal.classList.add('hidden'); });
+            dom.roleSelectClient.addEventListener('click', () => { switchRole('client'); dom.roleModal.classList.add('hidden'); });
+
+            dom.navDash.addEventListener('click', () => showSection('dash'));
+            dom.navOrdenanza.addEventListener('click', () => showSection('ordenanza'));
+            dom.navHorses.addEventListener('click', () => showSection('horses'));
+            dom.navAgenda.addEventListener('click', () => showSection('agenda'));
+            dom.navTruck.addEventListener('click', () => showSection('truck'));
+            dom.navFinance.addEventListener('click', () => showSection('finance'));
+
+            dom.filterAllHorses.addEventListener('click', () => setHorseFilter('all'));
+            dom.filterParticularHorses.addEventListener('click', () => setHorseFilter('particular'));
+            dom.filterSchoolHorses.addEventListener('click', () => setHorseFilter('escuela'));
+            dom.searchHorse.addEventListener('input', renderHorses);
+
+            dom.btnOpenClassModal.addEventListener('click', openClassModal);
+            dom.btnCloseClassModal.addEventListener('click', () => dom.classModal.classList.add('hidden'));
+
+            dom.classForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const selectedHorseName = dom.modalHorseSelect.value;
+                const h = horses.find(item => item.name === selectedHorseName);
+
+                const newClass = {
+                    alumno: dom.modalStudent.value.trim(),
+                    caballo: selectedHorseName,
+                    box: h ? h.box : "Box",
+                    tipo: dom.modalProfe.value.includes('Particular') ? 'Monta Particular' : 'Clase Escuela',
+                    profesor: dom.modalProfe.value,
+                    hora: dom.modalTime.value,
+                    listo: false
+                };
+
+                // Guardar directamente en la Nube Supabase
+                const { data, error } = await db.from('clases').insert([newClass]).select();
+                dom.classModal.classList.add('hidden');
+                fetchCloudData();
+            });
+        }
+
+        function openHorseDetail(id) {
+            const h = horses.find(item => item.id === id);
+            if (!h) return;
+
+            dom.modalDetailName.textContent = h.name;
+            dom.modalDetailBox.textContent = `${h.box} • ${h.type === 'particular' ? `Propietario: ${h.owner}` : 'Escuela Club'}`;
+            dom.modalDetailShoeing.textContent = `En ${h.shoeingDays} días`;
+            dom.modalDetailShoeType.textContent = h.shoeType || '4 Estándar';
+            dom.modalDetailFeedM.textContent = h.feedM || '1.5kg Pellet';
+            dom.modalDetailFeedT.textContent = h.feedT || '1.5kg Pellet';
+            dom.modalDetailFeedN.textContent = h.feedN || '1/2 Fardo Pasto Miel';
+            dom.modalDetailNotes.textContent = h.notes || 'Sin observaciones registradas.';
+
+            dom.horseDetailModal.classList.remove('hidden');
+        }
+
+        function switchRole(role) {
+            currentRole = role;
+            
+            if (role === 'admin') {
+                dom.lblCurrentRoleIcon.textContent = "👑";
+                dom.lblCurrentRoleText.textContent = "Admin";
+                dom.roleBannerText.textContent = "👑 Modo Admin: Control Total (Nube Activa)";
+                dom.navOrdenanza.classList.add('hidden');
+                dom.navFinance.classList.remove('hidden');
+            } else if (role === 'profe') {
+                dom.lblCurrentRoleIcon.textContent = "🎓";
+                dom.lblCurrentRoleText.textContent = "Profe";
+                dom.roleBannerText.textContent = "🎓 Modo Profesor: Clases y Pista";
+                dom.navOrdenanza.classList.add('hidden');
+                dom.navFinance.classList.add('hidden');
+            } else if (role === 'ordenanza') {
+                dom.lblCurrentRoleIcon.textContent = "🧹";
+                dom.lblCurrentRoleText.textContent = "Ordenanza";
+                dom.roleBannerText.textContent = "🧹 Modo Ordenanza: Pesebrera & Camión";
+                dom.navOrdenanza.classList.remove('hidden');
+                dom.navFinance.classList.add('hidden'); // BLOQUEO DE PLATAS
+                showSection('ordenanza');
+            } else {
+                dom.lblCurrentRoleIcon.textContent = "🐴";
+                dom.lblCurrentRoleText.textContent = "Socio";
+                dom.roleBannerText.textContent = "🐴 Modo Socio (Jorge M.): Vista Privada";
+                dom.navOrdenanza.classList.add('hidden');
+                dom.navFinance.classList.remove('hidden');
+            }
+
+            renderAll();
+        }
+
+        function showSection(sec) {
+            if ((currentRole === 'ordenanza' || currentRole === 'profe') && sec === 'finance') {
+                sec = 'dash';
+            }
+
+            const btns = [dom.navDash, dom.navOrdenanza, dom.navHorses, dom.navAgenda, dom.navTruck, dom.navFinance];
+            const secs = [dom.secDash, dom.secOrdenanza, dom.secHorses, dom.secAgenda, dom.secTruck, dom.secFinance];
+
+            btns.forEach(b => b.className = "flex flex-col items-center gap-0.5 text-hipo-textMuted text-[10px] font-bold py-1 px-2 rounded-lg");
+            secs.forEach(s => s.classList.add('hidden'));
+
+            if (sec === 'dash') { dom.navDash.classList.add('bottom-nav-active'); dom.secDash.classList.remove('hidden'); }
+            if (sec === 'ordenanza') { dom.navOrdenanza.classList.add('bottom-nav-active'); dom.secOrdenanza.classList.remove('hidden'); }
+            if (sec === 'horses') { dom.navHorses.classList.add('bottom-nav-active'); dom.secHorses.classList.remove('hidden'); }
+            if (sec === 'agenda') { dom.navAgenda.classList.add('bottom-nav-active'); dom.secAgenda.classList.remove('hidden'); }
+            if (sec === 'truck') { dom.navTruck.classList.add('bottom-nav-active'); dom.secTruck.classList.remove('hidden'); }
+            if (sec === 'finance') { dom.navFinance.classList.add('bottom-nav-active'); dom.secFinance.classList.remove('hidden'); }
+        }
+
+        function setHorseFilter(filter) {
+            currentFilter = filter;
+            dom.filterAllHorses.className = "py-1.5 rounded-lg font-bold " + (filter === 'all' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted');
+            dom.filterParticularHorses.className = "py-1.5 rounded-lg font-bold " + (filter === 'particular' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted');
+            dom.filterSchoolHorses.className = "py-1.5 rounded-lg font-bold " + (filter === 'escuela' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted');
+            renderHorses();
+        }
+
+        function getVisibleHorses() {
+            let list = horses;
+            if (currentRole === 'client') {
+                list = horses.filter(h => h.owner === "Jorge M.");
+            } else {
+                if (currentFilter === 'particular') list = horses.filter(h => h.type === 'particular');
+                if (currentFilter === 'escuela') list = horses.filter(h => h.type === 'escuela');
+            }
+
+            const query = dom.searchHorse.value.toLowerCase().trim();
+            if (query) {
+                list = list.filter(h => h.name.toLowerCase().includes(query) || (h.owner && h.owner.toLowerCase().includes(query)));
+            }
+            return list;
+        }
+
+        function renderAll() {
+            renderDashboard();
+            renderOrdenanza();
+            renderHorses();
+            renderAgenda();
+            renderTruck();
+            renderFinance();
+        }
+
+        function renderOrdenanza() {
+            dom.ordenanzaRidingList.innerHTML = '';
+            classesList.forEach(c => {
+                const div = document.createElement('div');
+                div.className = "bg-hipo-bg p-3 rounded-xl border border-hipo-border flex flex-col gap-2 text-xs";
+                div.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <span class="text-hipo-accent font-black text-xs">${c.time}</span>
+                            <span class="text-white font-bold block">${c.box}: ${c.horse}</span>
+                        </div>
+                        <span class="text-[10px] px-2 py-0.5 rounded font-bold ${c.type === 'Monta Particular' ? 'bg-hipo-accent/20 text-hipo-accent' : 'bg-hipo-purple/20 text-hipo-purple'}">${c.type}</span>
+                    </div>
+                    <div class="text-[11px] text-hipo-textMuted flex justify-between">
+                        <span>Jinete: <strong class="text-white">${c.student}</strong></span>
+                        <span>${c.profe}</span>
+                    </div>
+                    <button onclick="toggleReadyCloud(${c.id}, ${!c.ready})" class="w-full py-1.5 rounded-lg font-bold text-[11px] transition-all ${c.ready ? 'bg-hipo-success text-white' : 'bg-hipo-cardLight text-hipo-textMuted border border-hipo-border'}">
+                        ${c.ready ? '✓ Ensillado y Listo para Pista' : 'Marcar Ensillado / Listo'}
+                    </button>
+                `;
+                dom.ordenanzaRidingList.appendChild(div);
+            });
+
+            dom.ordenanzaFeedList.innerHTML = '';
+            horses.forEach(h => {
+                const div = document.createElement('div');
+                div.className = "bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-1.5 text-xs";
+                div.innerHTML = `
+                    <div class="flex justify-between items-center border-b border-hipo-border/50 pb-1">
+                        <strong class="text-white font-bold">${h.box}: ${h.name}</strong>
+                        <span class="text-[10px] text-hipo-accent font-bold">${h.owner || 'Escuela'}</span>
+                    </div>
+                    <div class="text-[11px] text-hipo-textMuted">
+                        <span>Ración Tarde: </span><strong class="text-white">${h.feedT || '1.5kg Pellet'}</strong>
+                    </div>
+                    <button onclick="toggleFeedLocal(${h.id})" class="w-full py-1.5 rounded-lg font-bold text-[11px] mt-1 transition-all ${h.fedT ? 'bg-hipo-success text-white' : 'bg-hipo-cardLight text-hipo-textMuted border border-hipo-border'}">
+                        ${h.fedT ? '✓ Ración Tarde Entregada' : 'Marcar Ración Entregada'}
+                    </button>
+                `;
+                dom.ordenanzaFeedList.appendChild(div);
+            });
+        }
+
+        window.toggleReadyCloud = async function(id, newReady) {
+            await db.from('clases').update({ listo: newReady }).eq('id', id);
+            fetchCloudData();
+        };
+
+        window.toggleFeedLocal = function(id) {
+            const h = horses.find(item => item.id === id);
+            if (h) h.fedT = !h.fedT;
+            renderOrdenanza();
+        };
+
+        function renderDashboard() {
+            dom.dashHorseCount.textContent = horses.length;
+            dom.dashClassCount.textContent = classesList.length;
+            dom.dashUrgentShoe.textContent = horses.filter(h => h.shoeingDays <= 3).length;
+
+            dom.dashTodayClasses.innerHTML = '';
+            if (classesList.length === 0) {
+                dom.dashTodayClasses.innerHTML = `<div class="text-hipo-textMuted text-center py-2 text-[11px]">No hay clases agendadas aún.</div>`;
+            }
+            classesList.forEach(c => {
+                const div = document.createElement('div');
+                div.className = "bg-hipo-bg p-2.5 rounded-xl border border-hipo-border flex items-center justify-between";
+                div.innerHTML = `
+                    <div>
+                        <strong class="text-white block">${c.time} • ${c.student}</strong>
+                        <span class="text-hipo-textMuted text-[10px]">Caballo: <strong class="text-white">${c.horse}</strong> (${c.profe})</span>
+                    </div>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded ${c.ready ? 'bg-hipo-success/20 text-hipo-success' : 'bg-hipo-warning/20 text-hipo-warning'}">${c.ready ? 'Listo' : 'En Box'}</span>
+                `;
+                dom.dashTodayClasses.appendChild(div);
+            });
+
+            dom.dashHealthAlerts.innerHTML = '';
+            const alerts = horses.filter(h => h.shoeingDays <= 3);
+            alerts.forEach(h => {
+                const div = document.createElement('div');
+                div.className = "bg-hipo-bg p-2.5 rounded-xl border border-hipo-border flex items-center justify-between";
+                div.innerHTML = `
+                    <div>
+                        <strong class="text-white block">${h.name} (${h.box})</strong>
+                        <span class="text-hipo-warning text-[10px]">Herraje urgente (${h.shoeingDays} días restantes)</span>
+                    </div>
+                    <span class="bg-hipo-warning/20 text-hipo-warning px-2 py-0.5 rounded text-[10px] font-bold">${h.owner || 'Escuela'}</span>
+                `;
+                dom.dashHealthAlerts.appendChild(div);
+            });
+        }
+
+        function renderHorses() {
+            const list = getVisibleHorses();
+            dom.horsesGrid.innerHTML = '';
+
+            list.forEach(h => {
+                const card = document.createElement('div');
+                card.className = "bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-2.5 cursor-pointer hover:border-hipo-accent transition-all";
+                card.onclick = () => openHorseDetail(h.id);
+
+                const typeBadge = h.type === 'particular' 
+                    ? `<span class="bg-hipo-accent/20 text-hipo-accent border border-hipo-accent/30 px-2 py-0.5 rounded-full text-[9px] font-bold">Particular</span>`
+                    : `<span class="bg-hipo-purple/20 text-hipo-purple border border-hipo-purple/30 px-2 py-0.5 rounded-full text-[9px] font-bold">Escuela</span>`;
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between border-b border-hipo-border pb-1.5">
+                        <div>
+                            <h3 class="font-bold text-sm text-white">${h.name}</h3>
+                            <span class="text-[10px] text-hipo-textMuted">${h.breed || 'Caballo'} • ${h.box}</span>
+                        </div>
+                        ${typeBadge}
+                    </div>
+
+                    <div class="space-y-1 text-xs">
+                        <div class="flex justify-between text-hipo-textMuted text-[11px]">
+                            <span>Propietario:</span>
+                            <strong class="text-white">${h.owner || 'Club Equino'}</strong>
+                        </div>
+                        <div class="flex justify-between text-hipo-textMuted text-[11px]">
+                            <span>Herraje:</span>
+                            <strong class="${h.shoeingDays <= 3 ? 'text-hipo-warning font-black' : 'text-white'}">En ${h.shoeingDays} días</strong>
+                        </div>
+                    </div>
+
+                    <button class="w-full bg-hipo-bg hover:bg-hipo-cardLight text-hipo-accent border border-hipo-border p-2 rounded-xl text-xs font-bold transition-colors">
+                        📄 Toca para ver Ficha Completa
+                    </button>
+                `;
+                dom.horsesGrid.appendChild(card);
+            });
+        }
+
+        function renderAgenda() {
+            dom.agendaList.innerHTML = '';
+            let filteredClasses = classesList;
+            if (currentRole === 'client') filteredClasses = classesList.filter(c => c.student === "Jorge M.");
+
+            filteredClasses.forEach(c => {
+                const div = document.createElement('div');
+                div.className = "bg-hipo-card p-3 rounded-2xl border border-hipo-border flex items-center justify-between";
+                div.innerHTML = `
+                    <div>
+                        <span class="text-xs font-bold text-hipo-accent block">${c.time} • ${c.student}</span>
+                        <span class="text-[11px] text-hipo-textMuted">Caballo: <strong class="text-white">${c.horse}</strong> (${c.profe})</span>
+                    </div>
+                    <span class="text-[10px] font-bold px-2 py-1 rounded ${c.ready ? 'bg-hipo-success/20 text-hipo-success' : 'bg-hipo-warning/20 text-hipo-warning'}">${c.ready ? '✓ Ensillado' : 'En Box'}</span>
+                `;
+                dom.agendaList.appendChild(div);
+            });
+        }
+
+        function renderTruck() {
+            dom.truckSlots.innerHTML = '';
+            const truckHorses = [
+                { slot: 1, horse: "Zafiro", rider: "Jorge M.", cat: "1.20m" },
+                { slot: 2, horse: "Rayo", rider: "Jorge M.", cat: "1.30m GP" },
+                { slot: 3, horse: "Tormenta", rider: "Valentina S.", cat: "1.10m" },
+                { slot: 4, horse: "Sultan", rider: "Mateo R.", cat: "1.20m" },
+                { slot: 5, horse: "Apolo", rider: "Tomás H.", cat: "1.00m" },
+                { slot: 6, horse: "Olimpo", rider: "Andres P.", cat: "1.10m" }
+            ];
+
+            truckHorses.forEach(s => {
+                const div = document.createElement('div');
+                div.className = "bg-hipo-bg p-2.5 rounded-xl border border-hipo-border flex justify-between items-center text-xs";
+                div.innerHTML = `
+                    <div>
+                        <span class="text-hipo-purple text-[10px] font-bold block">Box #${s.slot} Camión</span>
+                        <strong class="text-white text-xs">${s.horse}</strong>
+                        <span class="text-hipo-textMuted text-[10px] block">Prueba: ${s.cat}</span>
+                    </div>
+                    <span class="text-hipo-textMuted text-[11px]">Jinete: ${s.rider}</span>
+                `;
+                dom.truckSlots.appendChild(div);
+            });
+        }
+
+        function renderFinance() {
+            if (currentRole === 'ordenanza' || currentRole === 'profe') {
+                dom.financeContent.innerHTML = `<div class="p-4 text-center text-hipo-textMuted text-xs">Acceso restringido a este módulo.</div>`;
+                return;
+            }
+
+            dom.financeContent.innerHTML = '';
+            if (currentRole === 'client') {
+                dom.financeTitle.textContent = "💰 Cuenta Privada: Jorge M.";
+                dom.financeContent.innerHTML = `
+                    <div class="bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-2 text-xs">
+                        <div class="flex justify-between border-b border-hipo-border pb-1">
+                            <span class="text-hipo-textMuted">Pensionados & Servicios:</span>
+                            <strong class="text-hipo-danger">$450.000 Pendiente</strong>
+                        </div>
+                        <button class="w-full bg-hipo-success text-white font-bold py-2 rounded-xl text-xs mt-1">
+                            📤 Adjuntar Comprobante
+                        </button>
+                    </div>
+                `;
+            } else {
+                dom.financeTitle.textContent = "💰 Cobros Pendientes Pesebreras - Lo Arcaya";
+                const debtors = horses.filter(h => h.balance < 0);
+                debtors.forEach(d => {
+                    const div = document.createElement('div');
+                    div.className = "bg-hipo-bg p-2.5 rounded-xl border border-hipo-border flex items-center justify-between text-xs";
+                    div.innerHTML = `
+                        <div>
+                            <strong class="text-white block">${d.owner || 'Socio'}</strong>
+                            <span class="text-hipo-textMuted text-[10px]">${d.name} (${d.box})</span>
+                        </div>
+                        <span class="font-bold text-hipo-danger">$${Math.abs(d.balance).toLocaleString('es-CL')}</span>
+                    `;
+                    dom.financeContent.appendChild(div);
+                });
+            }
+        }
+
+        function openClassModal() {
+            dom.modalHorseSelect.innerHTML = '';
+            horses.forEach(h => {
+                const opt = document.createElement('option');
+                opt.value = h.name;
+                opt.textContent = `${h.name} (${h.type === 'escuela' ? 'Escuela' : 'Particular'})`;
+                dom.modalHorseSelect.appendChild(opt);
+            });
+            dom.classModal.classList.remove('hidden');
+        }
+
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
