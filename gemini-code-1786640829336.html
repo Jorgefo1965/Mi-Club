@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HípicaControl Pro v1.0 - Gestión de Club & Cuadra</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        hipo: {
+                            bg: '#0f172a',
+                            card: '#1e293b',
+                            cardLight: '#334155',
+                            accent: '#38bdf8',
+                            accentHover: '#0284c7',
+                            border: '#475569',
+                            textMuted: '#94a3b8',
+                            success: '#10b981',
+                            warning: '#f59e0b',
+                            danger: '#ef4444',
+                            purple: '#a855f7'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0f172a; color: white; -webkit-tap-highlight-color: transparent; font-family: system-ui, -apple-system, sans-serif; }
+        .nav-active { background-color: #38bdf8 !important; color: #0f172a !important; font-weight: 700; }
+        .role-active { border-color: #38bdf8 !important; background-color: rgba(56, 189, 248, 0.15) !important; }
+        select, input, textarea { background-color: #0f172a !important; border-color: #475569 !important; color: white !important; }
+        .modal-backdrop { background-color: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); }
+    </style>
+</head>
+<body class="p-3 md:p-6 font-sans antialiased text-slate-100">
+
+    <div class="max-w-7xl mx-auto space-y-5">
+
+        <!-- CABECERA PRINCIPAL CON CONMUTADOR DE ROLES / PRIVACIDAD -->
+        <header class="bg-hipo-card p-4 rounded-2xl border border-hipo-border shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <span class="text-3xl bg-hipo-bg p-2 rounded-xl border border-hipo-border">🏇</span>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-xl font-black text-white tracking-tight">HípicaControl</h1>
+                        <span class="text-[10px] font-mono bg-hipo-accent/20 text-hipo-accent border border-hipo-accent/40 px-2 py-0.5 rounded-full font-bold">Pro v1.0</span>
+                    </div>
+                    <p class="text-hipo-textMuted text-xs">Gestión Integral de Club, Cuadra & Clases</p>
+                </div>
+            </div>
+
+            <!-- SIMULADOR DE PERFILES Y SEGURIDAD -->
+            <div class="w-full md:w-auto bg-hipo-bg p-2 rounded-xl border border-hipo-border space-y-1">
+                <span class="block text-[10px] text-hipo-textMuted uppercase tracking-wider font-bold text-center">🛡️ Simular Perfil de Usuario (Privacidad)</span>
+                <div class="grid grid-cols-3 gap-1.5 text-xs">
+                    <button id="roleAdmin" class="px-2.5 py-1.5 rounded-lg border border-transparent font-bold role-active transition-all flex items-center justify-center gap-1">
+                        <span>👑</span> Admin
+                    </button>
+                    <button id="roleProfe" class="px-2.5 py-1.5 rounded-lg border border-transparent font-bold text-hipo-textMuted transition-all flex items-center justify-center gap-1">
+                        <span>🎓</span> Profesor
+                    </button>
+                    <button id="roleClient" class="px-2.5 py-1.5 rounded-lg border border-transparent font-bold text-hipo-textMuted transition-all flex items-center justify-center gap-1">
+                        <span>🐴</span> Socio/Alumno
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- BANNER DE ROL ACTIVO -->
+        <div id="roleBanner" class="bg-hipo-accent/10 border border-hipo-accent/30 p-2.5 rounded-xl flex items-center justify-between text-xs">
+            <span id="roleBannerText" class="font-bold text-hipo-accent">👑 Sesión Activa: Administrador General (Acceso Total a 20 Caballos y Finanzas)</span>
+            <span class="text-[10px] bg-hipo-accent text-hipo-bg font-extrabold px-2 py-0.5 rounded-md uppercase">Modo Privado</span>
+        </div>
+
+        <!-- NAVEGACIÓN POR MÓDULOS -->
+        <nav class="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+            <button id="navDash" class="px-4 py-2.5 rounded-xl font-bold nav-active transition-all whitespace-nowrap flex items-center gap-1.5">
+                <span>📊</span> Dashboard
+            </button>
+            <button id="navHorses" class="px-4 py-2.5 rounded-xl font-bold bg-hipo-card text-hipo-textMuted transition-all whitespace-nowrap flex items-center gap-1.5">
+                <span>🐎</span> Cuadra (20 Caballos)
+            </button>
+            <button id="navAgenda" class="px-4 py-2.5 rounded-xl font-bold bg-hipo-card text-hipo-textMuted transition-all whitespace-nowrap flex items-center gap-1.5">
+                <span>📅</span> Agenda de Clases
+            </button>
+            <button id="navTruck" class="px-4 py-2.5 rounded-xl font-bold bg-hipo-card text-hipo-textMuted transition-all whitespace-nowrap flex items-center gap-1.5">
+                <span>🚚</span> Camión & Concursos
+            </button>
+            <button id="navFinance" class="px-4 py-2.5 rounded-xl font-bold bg-hipo-card text-hipo-textMuted transition-all whitespace-nowrap flex items-center gap-1.5">
+                <span>💰</span> Cobros & Cuentas
+            </button>
+        </nav>
+
+        <!-- MÓDULO 1: DASHBOARD GENERAL -->
+        <main id="secDash" class="space-y-4">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="bg-hipo-card p-4 rounded-2xl border border-hipo-border">
+                    <span class="text-[10px] text-hipo-textMuted uppercase font-bold block">Total Caballos</span>
+                    <span id="dashTotalHorses" class="text-2xl font-black text-white">20</span>
+                    <span class="text-[10px] text-hipo-accent block mt-1">12 Particulares | 8 Escuela</span>
+                </div>
+                <div class="bg-hipo-card p-4 rounded-2xl border border-hipo-border">
+                    <span class="text-[10px] text-hipo-textMuted uppercase font-bold block">Clases de Hoy</span>
+                    <span class="text-2xl font-black text-white">6</span>
+                    <span class="text-[10px] text-hipo-success block mt-1">4 Pista 1 | 2 Pista 2</span>
+                </div>
+                <div class="bg-hipo-card p-4 rounded-2xl border border-hipo-border">
+                    <span class="text-[10px] text-hipo-textMuted uppercase font-bold block">Alerta Herrajes</span>
+                    <span class="text-2xl font-black text-hipo-warning">3</span>
+                    <span class="text-[10px] text-hipo-warning block mt-1">Vencen esta semana</span>
+                </div>
+                <div class="bg-hipo-card p-4 rounded-2xl border border-hipo-border">
+                    <span class="text-[10px] text-hipo-textMuted uppercase font-bold block">Próximo Concurso</span>
+                    <span class="text-lg font-bold text-white truncate block">CSO Club Polo</span>
+                    <span class="text-[10px] text-hipo-purple block mt-1">Camión: 6/6 Cupos</span>
+                </div>
+            </div>
+
+            <!-- RESUMEN OPERATIVO -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="bg-hipo-card p-4 rounded-2xl border border-hipo-border space-y-3">
+                    <h3 class="text-sm font-bold text-hipo-accent flex items-center justify-between border-b border-hipo-border pb-2">
+                        <span>📅 Clases Programadas para Hoy</span>
+                        <span class="text-xs bg-hipo-accent/20 text-hipo-accent px-2 py-0.5 rounded-md font-bold">4 Pendientes</span>
+                    </h3>
+                    <div id="dashTodayClasses" class="space-y-2 text-xs"></div>
+                </div>
+
+                <div class="bg-hipo-card p-4 rounded-2xl border border-hipo-border space-y-3">
+                    <h3 class="text-sm font-bold text-hipo-warning flex items-center justify-between border-b border-hipo-border pb-2">
+                        <span>💉 Alertas de Salud & Herrajes</span>
+                        <span class="text-xs bg-hipo-warning/20 text-hipo-warning px-2 py-0.5 rounded-md font-bold">Atención</span>
+                    </h3>
+                    <div id="dashHealthAlerts" class="space-y-2 text-xs"></div>
+                </div>
+            </div>
+        </main>
+
+        <!-- MÓDULO 2: CUADRA & FICHA DE CABALLOS -->
+        <main id="secHorses" class="space-y-4 hidden">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-hipo-card p-3 rounded-2xl border border-hipo-border">
+                <div class="flex items-center gap-2">
+                    <button id="filterAllHorses" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-hipo-accent text-hipo-bg">Todos (20)</button>
+                    <button id="filterParticularHorses" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-hipo-bg text-hipo-textMuted">Particulares (12)</button>
+                    <button id="filterSchoolHorses" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-hipo-bg text-hipo-textMuted">Escuela (8)</button>
+                </div>
+                <input type="text" id="searchHorse" placeholder="🔍 Buscar caballo o dueño..." class="w-full sm:w-64 p-2 rounded-xl text-xs">
+            </div>
+
+            <div id="horsesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </main>
+
+        <!-- MÓDULO 3: AGENDA DE CLASES -->
+        <main id="secAgenda" class="space-y-4 hidden">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-hipo-card p-4 rounded-2xl border border-hipo-border">
+                <div>
+                    <h2 class="font-bold text-sm text-white">Programación Diaria de Pista</h2>
+                    <p class="text-xs text-hipo-textMuted">Asignación de Alumno, Caballo, Profesor y Pista</p>
+                </div>
+                <button id="btnOpenClassModal" class="w-full sm:w-auto bg-hipo-accent hover:bg-hipo-accentHover text-hipo-bg px-4 py-2 rounded-xl font-bold text-xs transition-colors">
+                    + Agendar Nueva Clase
+                </button>
+            </div>
+
+            <div id="agendaList" class="space-y-3"></div>
+        </main>
+
+        <!-- MÓDULO 4: CAMIÓN & CAMPEONATOS -->
+        <main id="secTruck" class="space-y-4 hidden">
+            <div class="bg-hipo-card p-4 rounded-2xl border border-hipo-border space-y-3">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <div>
+                        <h2 class="font-bold text-sm text-hipo-purple flex items-center gap-2"><span>🚚</span> Salida a Concurso: CSO Club de Polo</h2>
+                        <span class="text-xs text-hipo-textMuted">Fecha: 22 de Agosto, 2026 • Chófer: Carlos M.</span>
+                    </div>
+                    <span class="bg-hipo-purple/20 text-hipo-purple border border-hipo-purple/40 px-3 py-1 rounded-full text-xs font-bold">Camión Lleno (6/6)</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3" id="truckSlots"></div>
+            </div>
+        </main>
+
+        <!-- MÓDULO 5: COBROS & ESTADO DE CUENTAS (PRIVADO) -->
+        <main id="secFinance" class="space-y-4 hidden">
+            <div class="bg-hipo-card p-4 rounded-2xl border border-hipo-border space-y-3">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h2 id="financeTitle" class="font-bold text-sm text-hipo-success flex items-center gap-2"><span>💰</span> Control Financiero de Pesebreras</h2>
+                    <button id="btnAddCharge" class="text-xs bg-hipo-success/20 text-hipo-success px-3 py-1.5 rounded-lg border border-hipo-success/30 font-bold hover:bg-hipo-success hover:text-white transition-all">+ Registrar Cobro</button>
+                </div>
+
+                <div id="financeContent" class="space-y-3"></div>
+            </div>
+        </main>
+
+        <!-- MODAL AGENDAR CLASE -->
+        <div id="classModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-4">
+            <div class="bg-hipo-card w-full max-w-lg rounded-2xl border border-hipo-border p-5 space-y-4 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-3">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">📅 Agendar Clase de Equitación</h3>
+                    <button id="btnCloseClassModal" class="text-hipo-textMuted hover:text-white text-xl font-bold">&times;</button>
+                </div>
+
+                <form id="classForm" class="space-y-3 text-xs">
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-semibold">Alumno / Cliente</label>
+                        <input type="text" id="modalStudent" placeholder="Nombre del alumno" required class="w-full p-2.5 rounded-xl border">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-semibold">Horario</label>
+                            <select id="modalTime" class="w-full p-2.5 rounded-xl border">
+                                <option value="15:00 hrs">15:00 hrs</option>
+                                <option value="16:00 hrs" selected>16:00 hrs</option>
+                                <option value="17:00 hrs">17:00 hrs</option>
+                                <option value="18:00 hrs">18:00 hrs</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-semibold">Profesor</label>
+                            <select id="modalProfe" class="w-full p-2.5 rounded-xl border">
+                                <option value="Prof. Fernando R.">Prof. Fernando R.</option>
+                                <option value="Prof. Sofia K.">Prof. Sofia K.</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-semibold">Asignar Caballo (Escuela o Propio)</label>
+                        <select id="modalHorseSelect" class="w-full p-2.5 rounded-xl border font-semibold text-hipo-accent">
+                            <!-- Opciones cargadas dinámicamente -->
+                        </select>
+                    </div>
+
+                    <div id="classWarning" class="p-2.5 bg-hipo-warning/10 border border-hipo-warning/30 text-hipo-warning rounded-xl text-[11px] hidden"></div>
+
+                    <button type="submit" class="w-full bg-hipo-accent text-hipo-bg font-extrabold p-3 rounded-xl text-xs hover:bg-hipo-accentHover transition-colors mt-2">
+                        ✓ Confirmar y Agendar Clase
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <footer class="text-center py-4 border-t border-hipo-border text-hipo-textMuted text-xs">
+            HípicaControl Pro v1.0 • Sistema Seguro de Gestión de Club Equino • © 2026
+        </footer>
+
+    </div>
+
+    <script>
+        // --- BASE DE DATOS LOCAL DE 20 CABALLOS ---
+        let currentRole = 'admin'; // 'admin', 'profe', 'client'
+        let currentFilter = 'all';
+
+        const horses = [
+            // PARTICULARES (12)
+            { id: 1, name: "Zafiro", type: "particular", owner: "Jorge M.", box: "Box 01", breed: "Silla Argentino", status: "Al día", vaccineDate: "2026-05-10", shoeingDays: 12, feed: "3kg Avena + Alfalfa + Suplemento", balance: -450000, clientEmail: "jorge@mail.com" },
+            { id: 2, name: "Rayo", type: "particular", owner: "Jorge M.", box: "Box 02", breed: "Holsteiner", status: "Herraje Pendiente", vaccineDate: "2026-06-15", shoeingDays: 2, feed: "2.5kg Pellet + Alfalfa", balance: 0, clientEmail: "jorge@mail.com" },
+            { id: 3, name: "Tormenta", type: "particular", owner: "Valentina S.", box: "Box 03", breed: "Pura Sangre", status: "Al día", vaccineDate: "2026-07-01", shoeingDays: 24, feed: "3kg Mezcla Especial", balance: -380000, clientEmail: "vale@mail.com" },
+            { id: 4, name: "Sultan", type: "particular", owner: "Mateo R.", box: "Box 04", breed: "KWPN", status: "Al día", vaccineDate: "2026-04-20", shoeingDays: 18, feed: "3.5kg Pellet GP", balance: 0, clientEmail: "mateo@mail.com" },
+            { id: 5, name: "Donante", type: "particular", owner: "Camila L.", box: "Box 05", breed: "Hannoveriano", status: "Vacuna Vencida", vaccineDate: "2026-01-10", shoeingDays: 5, feed: "2kg Pellet + Pasto", balance: -120000, clientEmail: "cami@mail.com" },
+            { id: 6, name: "Olimpo", type: "particular", owner: "Andres P.", box: "Box 06", breed: "Silla Francés", status: "Al día", vaccineDate: "2026-08-01", shoeingDays: 30, feed: "3kg Avena", balance: 0, clientEmail: "andres@mail.com" },
+            { id: 7, name: "Gitano", type: "particular", owner: "Lucia M.", box: "Box 07", breed: "Mestal", status: "Al día", vaccineDate: "2026-05-12", shoeingDays: 14, feed: "2kg Pellet", balance: 0, clientEmail: "lucia@mail.com" },
+            { id: 8, name: "Apolo", type: "particular", owner: "Tomás H.", box: "Box 08", breed: "Oldenburgo", status: "Herraje Pendiente", vaccineDate: "2026-06-20", shoeingDays: 1, feed: "3kg Pellet GP", balance: -520000, clientEmail: "tomas@mail.com" },
+            { id: 9, name: "Amadeus", type: "particular", owner: "Sofia V.", box: "Box 09", breed: "Holsteiner", status: "Al día", vaccineDate: "2026-07-15", shoeingDays: 20, feed: "2.5kg Avena", balance: 0, clientEmail: "sofi@mail.com" },
+            { id: 10, name: "Pegasus", type: "particular", owner: "Gabriel B.", box: "Box 10", breed: "CDE", status: "Al día", vaccineDate: "2026-06-01", shoeingDays: 16, feed: "3kg Pellet", balance: 0, clientEmail: "gabi@mail.com" },
+            { id: 11, name: "Baron", type: "particular", owner: "Elena C.", box: "Box 11", breed: "Westfaliano", status: "Al día", vaccineDate: "2026-07-22", shoeingDays: 28, feed: "2.5kg Avena + Electrolitos", balance: 0, clientEmail: "elena@mail.com" },
+            { id: 12, name: "Chester", type: "particular", owner: "Diego F.", box: "Box 12", breed: "Caballo Chileno", status: "Al día", vaccineDate: "2026-05-30", shoeingDays: 10, feed: "2kg Pasto Miel", balance: 0, clientEmail: "diego@mail.com" },
+
+            // ESCUELA DEL CLUB (8)
+            { id: 13, name: "Caramelo", type: "escuela", owner: "Club Equino", box: "Box 13", breed: "Mestizo", status: "Al día", vaccineDate: "2026-06-10", shoeingDays: 15, feed: "2kg Escuela", dailyClasses: 2, maxClasses: 3 },
+            { id: 14, name: "Pinto", type: "escuela", owner: "Club Equino", box: "Box 14", breed: "Pinto", status: "Al día", vaccineDate: "2026-06-10", shoeingDays: 22, feed: "2kg Escuela", dailyClasses: 3, maxClasses: 3 },
+            { id: 15, name: "Manchas", type: "escuela", owner: "Club Equino", box: "Box 15", breed: "Appaloosa", status: "Al día", vaccineDate: "2026-07-05", shoeingDays: 8, feed: "2kg Escuela", dailyClasses: 1, maxClasses: 3 },
+            { id: 16, name: "Luna", type: "escuela", owner: "Club Equino", box: "Box 16", breed: "Mestizo", status: "Herraje Pendiente", vaccineDate: "2026-05-18", shoeingDays: 3, feed: "2kg Escuela", dailyClasses: 2, maxClasses: 3 },
+            { id: 17, name: "Sombra", type: "escuela", owner: "Club Equino", box: "Box 17", breed: "Pura Sangre R.", status: "Al día", vaccineDate: "2026-06-25", shoeingDays: 19, feed: "2.5kg Escuela", dailyClasses: 0, maxClasses: 2 },
+            { id: 18, name: "Chispita", type: "escuela", owner: "Club Equino", box: "Box 18", breed: "Pony Costerito", status: "Al día", vaccineDate: "2026-07-12", shoeingDays: 25, feed: "1.5kg Pony", dailyClasses: 1, maxClasses: 3 },
+            { id: 19, name: "Duque", type: "escuela", owner: "Club Equino", box: "Box 19", breed: "Mestizo", status: "Al día", vaccineDate: "2026-06-08", shoeingDays: 11, feed: "2kg Escuela", dailyClasses: 2, maxClasses: 3 },
+            { id: 20, name: "Rider", type: "escuela", owner: "Club Equino", box: "Box 20", breed: "Silla Argentino", status: "Al día", vaccineDate: "2026-07-20", shoeingDays: 17, feed: "2.5kg Escuela", dailyClasses: 1, maxClasses: 2 }
+        ];
+
+        let classesList = [
+            { id: 101, student: "Camila Soto", horse: "Caramelo", profe: "Prof. Fernando R.", time: "15:00 hrs", pista: "Pista 1", status: "Confirmada" },
+            { id: 102, student: "Lucas Silva", horse: "Pinto", profe: "Prof. Sofia K.", time: "16:00 hrs", pista: "Pista 2", status: "Confirmada" },
+            { id: 103, student: "Jorge M.", horse: "Zafiro", profe: "Prof. Fernando R.", time: "16:30 hrs", pista: "Pista 1", status: "Confirmada" },
+            { id: 104, student: "Martina G.", horse: "Manchas", profe: "Prof. Sofia K.", time: "17:00 hrs", pista: "Pista 1", status: "Pendiente" }
+        ];
+
+        // --- Mapeo de Elementos DOM ---
+        const dom = {
+            roleAdmin: document.getElementById('roleAdmin'),
+            roleProfe: document.getElementById('roleProfe'),
+            roleClient: document.getElementById('roleClient'),
+            roleBannerText: document.getElementById('roleBannerText'),
+            navDash: document.getElementById('navDash'),
+            navHorses: document.getElementById('navHorses'),
+            navAgenda: document.getElementById('navAgenda'),
+            navTruck: document.getElementById('navTruck'),
+            navFinance: document.getElementById('navFinance'),
+            secDash: document.getElementById('secDash'),
+            secHorses: document.getElementById('secHorses'),
+            secAgenda: document.getElementById('secAgenda'),
+            secTruck: document.getElementById('secTruck'),
+            secFinance: document.getElementById('secFinance'),
+            horsesGrid: document.getElementById('horsesGrid'),
+            dashTodayClasses: document.getElementById('dashTodayClasses'),
+            dashHealthAlerts: document.getElementById('dashHealthAlerts'),
+            agendaList: document.getElementById('agendaList'),
+            truckSlots: document.getElementById('truckSlots'),
+            financeContent: document.getElementById('financeContent'),
+            financeTitle: document.getElementById('financeTitle'),
+            btnAddCharge: document.getElementById('btnAddCharge'),
+            filterAllHorses: document.getElementById('filterAllHorses'),
+            filterParticularHorses: document.getElementById('filterParticularHorses'),
+            filterSchoolHorses: document.getElementById('filterSchoolHorses'),
+            searchHorse: document.getElementById('searchHorse'),
+            btnOpenClassModal: document.getElementById('btnOpenClassModal'),
+            btnCloseClassModal: document.getElementById('btnCloseClassModal'),
+            classModal: document.getElementById('classModal'),
+            classForm: document.getElementById('classForm'),
+            modalStudent: document.getElementById('modalStudent'),
+            modalTime: document.getElementById('modalTime'),
+            modalProfe: document.getElementById('modalProfe'),
+            modalHorseSelect: document.getElementById('modalHorseSelect'),
+            classWarning: document.getElementById('classWarning')
+        };
+
+        function init() {
+            setupEventListeners();
+            switchRole('admin');
+            renderAll();
+        }
+
+        function setupEventListeners() {
+            dom.roleAdmin.addEventListener('click', () => switchRole('admin'));
+            dom.roleProfe.addEventListener('click', () => switchRole('profe'));
+            dom.roleClient.addEventListener('click', () => switchRole('client'));
+
+            dom.navDash.addEventListener('click', () => showSection('dash'));
+            dom.navHorses.addEventListener('click', () => showSection('horses'));
+            dom.navAgenda.addEventListener('click', () => showSection('agenda'));
+            dom.navTruck.addEventListener('click', () => showSection('truck'));
+            dom.navFinance.addEventListener('click', () => showSection('finance'));
+
+            dom.filterAllHorses.addEventListener('click', () => setHorseFilter('all'));
+            dom.filterParticularHorses.addEventListener('click', () => setHorseFilter('particular'));
+            dom.filterSchoolHorses.addEventListener('click', () => setHorseFilter('escuela'));
+            dom.searchHorse.addEventListener('input', renderHorses);
+
+            dom.btnOpenClassModal.addEventListener('click', openClassModal);
+            dom.btnCloseClassModal.addEventListener('click', () => dom.classModal.classList.add('hidden'));
+
+            dom.modalHorseSelect.addEventListener('change', checkHorseClassLimit);
+
+            dom.classForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const selectedHorseName = dom.modalHorseSelect.value;
+                const newClass = {
+                    id: Date.now(),
+                    student: dom.modalStudent.value.trim(),
+                    horse: selectedHorseName,
+                    profe: dom.modalProfe.value,
+                    time: dom.modalTime.value,
+                    pista: "Pista 1",
+                    status: "Confirmada"
+                };
+
+                // Incrementar contador si es de escuela
+                const h = horses.find(item => item.name === selectedHorseName);
+                if (h && h.type === 'escuela') h.dailyClasses++;
+
+                classesList.push(newClass);
+                dom.classModal.classList.add('hidden');
+                renderAll();
+            });
+        }
+
+        function switchRole(role) {
+            currentRole = role;
+            
+            dom.roleAdmin.className = "px-2.5 py-1.5 rounded-lg border border-transparent font-bold transition-all flex items-center justify-center gap-1 " + (role === 'admin' ? 'role-active text-hipo-accent' : 'text-hipo-textMuted');
+            dom.roleProfe.className = "px-2.5 py-1.5 rounded-lg border border-transparent font-bold transition-all flex items-center justify-center gap-1 " + (role === 'profe' ? 'role-active text-hipo-accent' : 'text-hipo-textMuted');
+            dom.roleClient.className = "px-2.5 py-1.5 rounded-lg border border-transparent font-bold transition-all flex items-center justify-center gap-1 " + (role === 'client' ? 'role-active text-hipo-accent' : 'text-hipo-textMuted');
+
+            if (role === 'admin') {
+                dom.roleBannerText.textContent = "👑 Sesión Activa: Administrador General (Acceso Total a 20 Caballos, Cobros y Agenda)";
+                dom.btnAddCharge.classList.remove('hidden');
+            } else if (role === 'profe') {
+                dom.roleBannerText.textContent = "🎓 Sesión Activa: Profesor Fernando R. (Acceso a Agenda de Clases y Pistas)";
+                dom.btnAddCharge.classList.add('hidden');
+            } else {
+                dom.roleBannerText.textContent = "🐴 Sesión Activa: Jorge M. (Vista Privada de Socio: Solo ve a Zafiro y Rayo)";
+                dom.btnAddCharge.classList.add('hidden');
+            }
+
+            renderAll();
+        }
+
+        function showSection(sec) {
+            const btns = [dom.navDash, dom.navHorses, dom.navAgenda, dom.navTruck, dom.navFinance];
+            const secs = [dom.secDash, dom.secHorses, dom.secAgenda, dom.secTruck, dom.secFinance];
+
+            btns.forEach(b => b.className = "px-4 py-2.5 rounded-xl font-bold bg-hipo-card text-hipo-textMuted transition-all whitespace-nowrap flex items-center gap-1.5");
+            secs.forEach(s => s.classList.add('hidden'));
+
+            if (sec === 'dash') { dom.navDash.className = "px-4 py-2.5 rounded-xl font-bold nav-active transition-all whitespace-nowrap flex items-center gap-1.5"; dom.secDash.classList.remove('hidden'); }
+            if (sec === 'horses') { dom.navHorses.className = "px-4 py-2.5 rounded-xl font-bold nav-active transition-all whitespace-nowrap flex items-center gap-1.5"; dom.secHorses.classList.remove('hidden'); }
+            if (sec === 'agenda') { dom.navAgenda.className = "px-4 py-2.5 rounded-xl font-bold nav-active transition-all whitespace-nowrap flex items-center gap-1.5"; dom.secAgenda.classList.remove('hidden'); }
+            if (sec === 'truck') { dom.navTruck.className = "px-4 py-2.5 rounded-xl font-bold nav-active transition-all whitespace-nowrap flex items-center gap-1.5"; dom.secTruck.classList.remove('hidden'); }
+            if (sec === 'finance') { dom.navFinance.className = "px-4 py-2.5 rounded-xl font-bold nav-active transition-all whitespace-nowrap flex items-center gap-1.5"; dom.secFinance.classList.remove('hidden'); }
+        }
+
+        function setHorseFilter(filter) {
+            currentFilter = filter;
+            dom.filterAllHorses.className = "px-3 py-1.5 rounded-lg text-xs font-bold " + (filter === 'all' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted');
+            dom.filterParticularHorses.className = "px-3 py-1.5 rounded-lg text-xs font-bold " + (filter === 'particular' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted');
+            dom.filterSchoolHorses.className = "px-3 py-1.5 rounded-lg text-xs font-bold " + (filter === 'escuela' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted');
+            renderHorses();
+        }
+
+        function getVisibleHorses() {
+            let list = horses;
+            if (currentRole === 'client') {
+                // Filtro de privacidad: Solo ve caballos asignados a Jorge M.
+                list = horses.filter(h => h.owner === "Jorge M.");
+            } else {
+                if (currentFilter === 'particular') list = horses.filter(h => h.type === 'particular');
+                if (currentFilter === 'escuela') list = horses.filter(h => h.type === 'escuela');
+            }
+
+            const query = dom.searchHorse.value.toLowerCase().trim();
+            if (query) {
+                list = list.filter(h => h.name.toLowerCase().includes(query) || h.owner.toLowerCase().includes(query));
+            }
+            return list;
+        }
+
+        function renderAll() {
+            renderDashboard();
+            renderHorses();
+            renderAgenda();
+            renderTruck();
+            renderFinance();
+        }
+
+        function renderDashboard() {
+            // Clases de hoy
+            dom.dashTodayClasses.innerHTML = '';
+            classesList.forEach(c => {
+                const div = document.createElement('div');
+                div.className = "bg-hipo-bg p-2.5 rounded-xl border border-hipo-border flex items-center justify-between";
+                div.innerHTML = `
+                    <div>
+                        <span class="font-bold text-white">${c.time} • ${c.student}</span>
+                        <span class="text-hipo-textMuted block text-[11px]">Caballo: <strong>${c.horse}</strong> (${c.profe})</span>
+                    </div>
+                    <span class="bg-hipo-accent/20 text-hipo-accent px-2 py-0.5 rounded-md font-bold text-[10px]">${c.pista}</span>
+                `;
+                dom.dashTodayClasses.appendChild(div);
+            });
+
+            // Alertas de salud
+            dom.dashHealthAlerts.innerHTML = '';
+            const alerts = horses.filter(h => h.shoeingDays <= 3 || h.status.includes('Vencida'));
+            alerts.forEach(h => {
+                const div = document.createElement('div');
+                div.className = "bg-hipo-bg p-2.5 rounded-xl border border-hipo-border flex items-center justify-between";
+                div.innerHTML = `
+                    <div>
+                        <span class="font-bold text-white">${h.name} (${h.box})</span>
+                        <span class="text-hipo-warning block text-[11px]">${h.shoeingDays <= 3 ? `Herraje urgente (${h.shoeingDays} días restantes)` : 'Vacuna expirada'}</span>
+                    </div>
+                    <span class="bg-hipo-warning/20 text-hipo-warning px-2 py-0.5 rounded-md font-bold text-[10px]">${h.owner}</span>
+                `;
+                dom.dashHealthAlerts.appendChild(div);
+            });
+        }
+
+        function renderHorses() {
+            const list = getVisibleHorses();
+            dom.horsesGrid.innerHTML = '';
+
+            list.forEach(h => {
+                const card = document.createElement('div');
+                card.className = "bg-hipo-card p-4 rounded-2xl border border-hipo-border space-y-3 hover:border-hipo-accent/50 transition-all";
+
+                const typeBadge = h.type === 'particular' 
+                    ? `<span class="bg-hipo-accent/20 text-hipo-accent border border-hipo-accent/30 px-2 py-0.5 rounded-full text-[10px] font-bold">Particular</span>`
+                    : `<span class="bg-hipo-purple/20 text-hipo-purple border border-hipo-purple/30 px-2 py-0.5 rounded-full text-[10px] font-bold">Escuela Club</span>`;
+
+                const workLoad = h.type === 'escuela' 
+                    ? `<div class="bg-hipo-bg p-2 rounded-xl border border-hipo-border text-[11px] flex justify-between items-center">
+                         <span class="text-hipo-textMuted">Carga Clases Hoy:</span>
+                         <span class="font-bold ${h.dailyClasses >= h.maxClasses ? 'text-hipo-danger' : 'text-hipo-success'}">${h.dailyClasses} / ${h.maxClasses} clases</span>
+                       </div>`
+                    : '';
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                        <div>
+                            <h3 class="font-bold text-base text-white flex items-center gap-2">${h.name}</h3>
+                            <span class="text-xs text-hipo-textMuted">${h.breed} • ${h.box}</span>
+                        </div>
+                        ${typeBadge}
+                    </div>
+
+                    <div class="space-y-1.5 text-xs">
+                        <div class="flex justify-between text-hipo-textMuted">
+                            <span>Propietario:</span>
+                            <strong class="text-white">${h.owner}</strong>
+                        </div>
+                        <div class="flex justify-between text-hipo-textMuted">
+                            <span>Próx. Herraje:</span>
+                            <strong class="${h.shoeingDays <= 3 ? 'text-hipo-warning font-black' : 'text-white'}">En ${h.shoeingDays} días</strong>
+                        </div>
+                        <div class="flex justify-between text-hipo-textMuted">
+                            <span>Alimentación:</span>
+                            <strong class="text-white text-[11px] truncate max-w-[150px]">${h.feed}</strong>
+                        </div>
+                    </div>
+
+                    ${workLoad}
+
+                    <button class="w-full bg-hipo-bg hover:bg-hipo-cardLight text-hipo-accent border border-hipo-border p-2 rounded-xl text-xs font-bold transition-colors">
+                        📄 Ver Ficha Completa & Historial
+                    </button>
+                `;
+                dom.horsesGrid.appendChild(card);
+            });
+        }
+
+        function renderAgenda() {
+            dom.agendaList.innerHTML = '';
+            
+            let filteredClasses = classesList;
+            if (currentRole === 'client') {
+                filteredClasses = classesList.filter(c => c.student === "Jorge M.");
+            }
+
+            filteredClasses.forEach(c => {
+                const div = document.createElement('div');
+                div.className = "bg-hipo-card p-3.5 rounded-2xl border border-hipo-border flex flex-col sm:flex-row sm:items-center justify-between gap-3";
+                div.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="bg-hipo-bg p-2.5 rounded-xl text-center min-w-[70px] border border-hipo-border">
+                            <span class="block text-xs font-black text-hipo-accent">${c.time}</span>
+                            <span class="text-[9px] text-hipo-textMuted block font-bold">${c.pista}</span>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-sm text-white">${c.student}</h4>
+                            <span class="text-xs text-hipo-textMuted">Caballo: <strong class="text-white">${c.horse}</strong> • ${c.profe}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="bg-hipo-success/20 text-hipo-success border border-hipo-success/30 px-3 py-1 rounded-full text-xs font-bold">${c.status}</span>
+                    </div>
+                `;
+                dom.agendaList.appendChild(div);
+            });
+        }
+
+        function renderTruck() {
+            dom.truckSlots.innerHTML = '';
+            const truckHorses = [
+                { slot: 1, horse: "Zafiro", rider: "Jorge M.", cat: "1.20m" },
+                { slot: 2, horse: "Rayo", rider: "Jorge M.", cat: "1.30m GP" },
+                { slot: 3, horse: "Tormenta", rider: "Valentina S.", cat: "1.10m" },
+                { slot: 4, horse: "Sultan", rider: "Mateo R.", cat: "1.20m" },
+                { slot: 5, horse: "Apolo", rider: "Tomás H.", cat: "1.00m" },
+                { slot: 6, horse: "Olimpo", rider: "Andres P.", cat: "1.10m" }
+            ];
+
+            truckHorses.forEach(s => {
+                const div = document.createElement('div');
+                div.className = "bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-1 text-xs";
+                div.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-hipo-purple">Box #${s.slot} Camión</span>
+                        <span class="bg-hipo-purple/20 text-hipo-purple px-2 py-0.5 rounded text-[10px] font-bold">${s.cat}</span>
+                    </div>
+                    <strong class="block text-white text-sm">${s.horse}</strong>
+                    <span class="text-hipo-textMuted block">Jinete: ${s.rider}</span>
+                `;
+                dom.truckSlots.appendChild(div);
+            });
+        }
+
+        function renderFinance() {
+            dom.financeContent.innerHTML = '';
+
+            if (currentRole === 'client') {
+                dom.financeTitle.textContent = "💰 Estado de Cuenta Privado: Jorge M.";
+                dom.financeContent.innerHTML = `
+                    <div class="bg-hipo-bg p-4 rounded-xl border border-hipo-border space-y-3 text-xs">
+                        <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                            <span class="font-bold text-white text-sm">Resumen de Cobros - Agosto 2026</span>
+                            <span class="bg-hipo-danger/20 text-hipo-danger border border-hipo-danger/40 px-3 py-1 rounded-full font-bold">Pendiente: $450.000</span>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-hipo-textMuted">
+                                <span>Pensionado Zafiro (Box 01):</span>
+                                <strong class="text-white">$350.000</strong>
+                            </div>
+                            <div class="flex justify-between text-hipo-textMuted">
+                                <span>Pensionado Rayo (Box 02):</span>
+                                <strong class="text-white">$350.000</strong>
+                            </div>
+                            <div class="flex justify-between text-hipo-textMuted">
+                                <span>Herraje Zafiro (4 herraduras):</span>
+                                <strong class="text-white">$50.000</strong>
+                            </div>
+                            <div class="flex justify-between text-hipo-textMuted">
+                                <span>Flete Camión Concurso Polo (2 caballos):</span>
+                                <strong class="text-white">$100.000</strong>
+                            </div>
+                            <div class="flex justify-between text-hipo-success border-t border-hipo-border pt-2 font-bold">
+                                <span>Abono Recibido Transferencia:</span>
+                                <span>-$400.000</span>
+                            </div>
+                        </div>
+                        <button class="w-full bg-hipo-success text-white font-bold p-2.5 rounded-xl mt-2 hover:bg-emerald-600 transition-colors">
+                            📤 Adjuntar Comprobante de Transferencia
+                        </button>
+                    </div>
+                `;
+            } else {
+                dom.financeTitle.textContent = "💰 Control Financiero de Pesebreras (Vista Club)";
+                const debtors = horses.filter(h => h.balance < 0);
+                debtors.forEach(d => {
+                    const div = document.createElement('div');
+                    div.className = "bg-hipo-bg p-3.5 rounded-xl border border-hipo-border flex items-center justify-between text-xs";
+                    div.innerHTML = `
+                        <div>
+                            <span class="font-bold text-white text-sm">${d.owner}</span>
+                            <span class="text-hipo-textMuted block">Caballo: ${d.name} (${d.box})</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="font-black text-hipo-danger text-sm block">$${Math.abs(d.balance).toLocaleString('es-CL')}</span>
+                            <span class="text-[10px] text-hipo-warning font-bold">Pendiente Agosto</span>
+                        </div>
+                    `;
+                    dom.financeContent.appendChild(div);
+                });
+            }
+        }
+
+        function openClassModal() {
+            dom.modalHorseSelect.innerHTML = '';
+            horses.forEach(h => {
+                const opt = document.createElement('option');
+                opt.value = h.name;
+                opt.textContent = `${h.name} (${h.type === 'escuela' ? `Escuela - ${h.dailyClasses}/${h.maxClasses} clases` : `Particular - ${h.owner}`})`;
+                dom.modalHorseSelect.appendChild(opt);
+            });
+            checkHorseClassLimit();
+            dom.classModal.classList.remove('hidden');
+        }
+
+        function checkHorseClassLimit() {
+            const name = dom.modalHorseSelect.value;
+            const h = horses.find(item => item.name === name);
+            if (h && h.type === 'escuela' && h.dailyClasses >= h.maxClasses) {
+                dom.classWarning.textContent = `⚠️ ADVERTENCIA: ${h.name} ya alcanzó el límite máximo de ${h.maxClasses} clases para hoy. Selecciona otro caballo de escuela.`;
+                dom.classWarning.classList.remove('hidden');
+            } else {
+                dom.classWarning.classList.add('hidden');
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
