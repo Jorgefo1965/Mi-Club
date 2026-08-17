@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lo Arcaya Pro - Club Ecuestre v5.6</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-slate-800 border-b border-slate-700 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="bg-amber-600 p-2 rounded-lg text-white font-bold text-xl">
+                    <i class="fa-solid fa-horse-head"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wide text-amber-400">Lo Arcaya Pro</h1>
+                    <p class="text-xs text-slate-400">Sistema de Gestión Ecuestre v5.6</p>
+                </div>
+            </div>
+
+            <!-- Role Indicator & Logout -->
+            <div class="flex items-center space-x-3 mt-2 sm:mt-0">
+                <span id="userRoleBadge" class="px-3 py-1 bg-slate-700 text-amber-300 rounded-full text-xs font-semibold uppercase">
+                    Cargando Rol...
+                </span>
+                <button onclick="logoutSession()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition">
+                    <i class="fa-solid fa-right-from-bracket mr-1"></i> Salir
+                </button>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <nav class="bg-slate-800/90 border-t border-slate-700 overflow-x-auto">
+            <div class="max-w-7xl mx-auto px-4 flex space-x-1 sm:space-x-4 py-2 text-sm whitespace-nowrap">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn px-3 py-2 rounded-lg bg-amber-600 text-white font-medium transition">
+                    <i class="fa-solid fa-chart-line mr-1"></i> Dashboard
+                </button>
+                <button onclick="switchTab('pesebrera')" id="nav-pesebrera" class="nav-btn px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-700 transition">
+                    <i class="fa-solid fa-house-chimney mr-1"></i> Pesebrera
+                </button>
+                <button onclick="switchTab('cuadra')" id="nav-cuadra" class="nav-btn px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-700 transition">
+                    <i class="fa-solid fa-horse mr-1"></i> Cuadra / Caballos
+                </button>
+                <button onclick="switchTab('agenda')" id="nav-agenda" class="nav-btn px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-700 transition">
+                    <i class="fa-solid fa-calendar-days mr-1"></i> Agenda & Clases
+                </button>
+                <button onclick="switchTab('personas')" id="nav-personas" class="nav-btn px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-700 transition">
+                    <i class="fa-solid fa-users mr-1"></i> Personas (Socios & Staff)
+                </button>
+                <button onclick="switchTab('campanas')" id="nav-campanas" class="nav-btn px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-700 transition">
+                    <i class="fa-solid fa-shield-halved mr-1"></i> Campañas Sanitarias
+                </button>
+                <button onclick="switchTab('cuentas')" id="nav-cuentas" class="nav-btn px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-700 transition">
+                    <i class="fa-solid fa-file-invoice-dollar mr-1"></i> Cuentas
+                </button>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full">
+
+        <!-- DASHBOARD TAB -->
+        <section id="tab-dashboard" class="tab-content active space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow">
+                    <p class="text-xs text-slate-400 font-semibold uppercase">Total Caballos Activos</p>
+                    <h3 id="statTotalCaballos" class="text-2xl font-bold text-amber-400 mt-1">0</h3>
+                </div>
+                <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow">
+                    <p class="text-xs text-slate-400 font-semibold uppercase">Clases Hoy</p>
+                    <h3 id="statClasesHoy" class="text-2xl font-bold text-emerald-400 mt-1">0</h3>
+                </div>
+                <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow">
+                    <p class="text-xs text-slate-400 font-semibold uppercase">Campañas Sanitarias Activas</p>
+                    <h3 id="statCampanasActivas" class="text-2xl font-bold text-sky-400 mt-1">0</h3>
+                </div>
+                <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow">
+                    <p class="text-xs text-slate-400 font-semibold uppercase">Personal Staff Activo</p>
+                    <h3 id="statTotalStaff" class="text-2xl font-bold text-purple-400 mt-1">0</h3>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow">
+                <h3 class="text-lg font-semibold text-amber-300 mb-2"><i class="fa-solid fa-circle-info mr-2"></i>Bienvenido a Lo Arcaya Pro v5.6</h3>
+                <p class="text-slate-300 text-sm">Utiliza las pestañas superiores para navegar entre los módulos de pesebrera, gestión de caballos, control de agenda, el nuevo directorio unificado de Socios y Staff con clasificación Interno/Externo, campañas sanitarias y cuentas.</p>
+            </div>
+        </section>
+
+        <!-- PESEBRERA TAB -->
+        <section id="tab-pesebrera" class="tab-content space-y-6">
+            <div class="flex justify-between items-center">
+                <h2 class="text-xl font-bold text-amber-300"><i class="fa-solid fa-house-chimney mr-2"></i>Estado de Pesebreras</h2>
+            </div>
+            <div id="pesebreraGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <!-- Generado dinámicamente -->
+            </div>
+        </section>
+
+        <!-- CUADRA TAB -->
+        <section id="tab-cuadra" class="tab-content space-y-6">
+            <div class="flex flex-wrap justify-between items-center gap-4">
+                <h2 class="text-xl font-bold text-amber-300"><i class="fa-solid fa-horse mr-2"></i>Directorio de Caballos</h2>
+                <button onclick="openModalCaballo()" class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
+                    <i class="fa-solid fa-plus mr-1"></i> Nuevo Caballo
+                </button>
+            </div>
+            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead class="bg-slate-700 text-slate-300 uppercase text-xs">
+                            <tr>
+                                <th class="p-3">Nombre</th>
+                                <th class="p-3">Box</th>
+                                <th class="p-3">Tipo</th>
+                                <th class="p-3">Propietario</th>
+                                <th class="p-3">Estado</th>
+                                <th class="p-3 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaCaballosBody" class="divide-y divide-slate-700">
+                            <!-- Datos dinámicos -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- AGENDA TAB -->
+        <section id="tab-agenda" class="tab-content space-y-6">
+            <div class="flex flex-wrap justify-between items-center gap-4">
+                <h2 class="text-xl font-bold text-amber-300"><i class="fa-solid fa-calendar-days mr-2"></i>Agenda y Clases</h2>
+                <button onclick="openModalClase()" class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
+                    <i class="fa-solid fa-plus mr-1"></i> Agendar Clase / Turno
+                </button>
+            </div>
+            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead class="bg-slate-700 text-slate-300 uppercase text-xs">
+                            <tr>
+                                <th class="p-3">Fecha / Hora</th>
+                                <th class="p-3">Tipo</th>
+                                <th class="p-3">Caballo / Alumno</th>
+                                <th class="p-3">Profesor</th>
+                                <th class="p-3">Validaciones</th>
+                                <th class="p-3 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaAgendaBody" class="divide-y divide-slate-700">
+                            <!-- Datos dinámicos -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- PERSONAS TAB (Socios & Staff con opción Interno/Externo) -->
+        <section id="tab-personas" class="tab-content space-y-6">
+            <div class="flex flex-wrap justify-between items-center gap-4">
+                <h2 class="text-xl font-bold text-amber-300"><i class="fa-solid fa-users mr-2"></i>Directorio de Personas (Socios y Staff)</h2>
+                <button onclick="openModalPersona()" class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
+                    <i class="fa-solid fa-plus mr-1"></i> Nueva Persona
+                </button>
+            </div>
+
+            <!-- Filtros rápidos para personas -->
+            <div class="flex flex-wrap gap-2 bg-slate-800 p-3 rounded-xl border border-slate-700">
+                <button onclick="filtrarPersonas('todos')" id="filter-btn-todos" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 text-white transition">Todos</button>
+                <button onclick="filtrarPersonas('socios')" id="filter-btn-socios" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 hover:bg-slate-600 transition">Socios</button>
+                <button onclick="filtrarPersonas('duenos')" id="filter-btn-duenos" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 hover:bg-slate-600 transition">Dueños</button>
+                <button onclick="filtrarPersonas('staff')" id="filter-btn-staff" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 hover:bg-slate-600 transition">Staff</button>
+            </div>
+
+            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead class="bg-slate-700 text-slate-300 uppercase text-xs">
+                            <tr>
+                                <th class="p-3">Nombre</th>
+                                <th class="p-3">Contacto</th>
+                                <th class="p-3">Roles / Categorías</th>
+                                <th class="p-3">Detalle Staff (Rol / Condición)</th>
+                                <th class="p-3 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaPersonasBody" class="divide-y divide-slate-700">
+                            <!-- Datos dinámicos -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- CAMPAÑAS TAB -->
+        <section id="tab-campanas" class="tab-content space-y-6">
+            <div class="flex flex-wrap justify-between items-center gap-4">
+                <h2 class="text-xl font-bold text-amber-300"><i class="fa-solid fa-shield-halved mr-2"></i>Campañas Sanitarias</h2>
+                <button onclick="openModalCampana()" class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
+                    <i class="fa-solid fa-plus mr-1"></i> Nueva Campaña
+                </button>
+            </div>
+            <div id="campanasContainer" class="space-y-6">
+                <!-- Renderizado dinámico de campañas -->
+            </div>
+        </section>
+
+        <!-- CUENTAS TAB -->
+        <section id="tab-cuentas" class="tab-content space-y-6">
+            <div class="flex justify-between items-center">
+                <h2 class="text-xl font-bold text-amber-300"><i class="fa-solid fa-file-invoice-dollar mr-2"></i>Cuentas y Cobros</h2>
+            </div>
+            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead class="bg-slate-700 text-slate-300 uppercase text-xs">
+                            <tr>
+                                <th class="p-3">Propietario / Socio</th>
+                                <th class="p-3">Concepto</th>
+                                <th class="p-3">Monto</th>
+                                <th class="p-3">Estado</th>
+                                <th class="p-3 text-right">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaCuentasBody" class="divide-y divide-slate-700">
+                            <!-- Datos dinámicos -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- MODAL PERSONA (Con opciones flexibles de Socios y Staff Interno/Externo) -->
+    <div id="modalPersona" class="fixed inset-0 bg-black/70 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+            <div class="bg-slate-700 px-6 py-4 flex justify-between items-center">
+                <h3 id="modalPersonaTitle" class="text-lg font-bold text-amber-300">Nueva Persona</h3>
+                <button onclick="closeModalPersona()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="formPersona" onsubmit="guardarPersona(event)" class="p-6 space-y-4">
+                <input type="hidden" id="personaId">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Nombre Completo</label>
+                    <input type="text" id="personaNombre" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Teléfono</label>
+                        <input type="text" id="personaTelefono" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Email</label>
+                        <input type="email" id="personaEmail" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+
+                <!-- Checkboxes independientes de roles -->
+                <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-700/60 space-y-3">
+                    <label class="block text-xs font-semibold uppercase text-amber-400">Roles / Categorías en el Club</label>
+                    <div class="flex flex-wrap gap-6">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="checkSocio" class="w-4 h-4 text-amber-600 rounded bg-slate-900 border-slate-700">
+                            <span class="text-sm">Socio</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="checkDueno" class="w-4 h-4 text-amber-600 rounded bg-slate-900 border-slate-700">
+                            <span class="text-sm">Dueño de Caballo</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="checkStaff" onchange="toggleStaffOptions()" class="w-4 h-4 text-amber-600 rounded bg-slate-900 border-slate-700">
+                            <span class="text-sm font-bold text-purple-300">Staff</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Opciones de Staff (Aparecen si checkStaff está activo) -->
+                <div id="staffOptionsContainer" class="bg-purple-950/20 p-4 rounded-xl border border-purple-900/40 space-y-4 hidden">
+                    <h4 class="text-xs font-bold uppercase text-purple-300"><i class="fa-solid fa-id-badge mr-1"></i> Configuración de Staff</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Rol en Staff</label>
+                            <select id="staffRol" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500">
+                                <option value="Profesor">Profesor</option>
+                                <option value="Ordenanza">Ordenanza / Pesebrera</option>
+                                <option value="Veterinario">Veterinario</option>
+                                <option value="Herrero">Herrero</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Condición</label>
+                            <select id="staffCondicion" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500">
+                                <option value="Interno">Interno (Planta)</option>
+                                <option value="Externo">Externo (Externo / Servicios)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-4 border-t border-slate-700">
+                    <button type="button" onclick="closeModalPersona()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-semibold transition">Guardar Persona</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Script de lógica de la aplicación -->
+    <script>
+        // Configuración Supabase
+        const SUPABASE_URL = 'https://tu-proyecto.supabase.co';
+        const SUPABASE_ANON_KEY = 'tu-anon-key';
+        let supabaseClient = null;
+
+        try {
+            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        } catch (e) {
+            console.warn("Supabase no configurado o offline, operando en modo local de respaldo.");
+        }
+
+        // Estado global de la app
+        let currentTab = 'dashboard';
+        let currentPersonaFilter = 'todos';
+        let mockPersonas = [
+            { id: 1, nombre: 'Jorge Fonck', telefono: '+56912345678', email: 'jorge@example.com', es_socio: true, es_dueno: true, es_staff: false, staff_rol: '', staff_condicion: '' },
+            { id: 2, nombre: 'Carlos Soto', telefono: '+56987654321', email: 'carlos@example.com', es_socio: false, es_dueno: false, es_staff: true, staff_rol: 'Profesor', staff_condicion: 'Interno' },
+            { id: 3, nombre: 'Dr. Roberto Gómez', telefono: '+56955443322', email: 'vet@example.com', es_socio: false, es_dueno: false, es_staff: true, staff_rol: 'Veterinario', staff_condicion: 'Externo' }
+        ];
+        let mockCaballos = [
+            { id: 1, nombre: 'Rayo', box: 1, tipo: 'Particular', propietario: 'Jorge Fonck', estado: 'Activo' },
+            { id: 2, nombre: 'Gitana', box: 2, tipo: 'Escuela', propietario: 'Club', estado: 'Activo' }
+        ];
+        let mockAgenda = [
+            { id: 1, fecha: '2026-08-18 10:00', tipo: 'Clase Salto', detalle: 'Rayo / Alumno Test', profesor: 'Carlos Soto', visto_profe: true, visto_ordenanza: true }
+        ];
+        let mockCampanas = [];
+        let mockCuentas = [];
+
+        // Inicialización
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('userRoleBadge').innerText = 'Admin / Gestor';
+            renderDashboard();
+            renderPesebreras();
+            renderCaballos();
+            renderAgenda();
+            renderPersonas();
+            renderCampanas();
+            renderCuentas();
+        });
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => {
+                el.classList.remove('bg-amber-600', 'text-white');
+                el.classList.add('text-slate-300', 'hover:bg-slate-700');
+            });
+
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+            const activeBtn = document.getElementById(`nav-${tabId}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('text-slate-300', 'hover:bg-slate-700');
+                activeBtn.classList.add('bg-amber-600', 'text-white');
+            }
+            currentTab = tabId;
+        }
+
+        function logoutSession() {
+            alert('Sesión finalizada.');
+        }
+
+        // --- DASHBOARD ---
+        function renderDashboard() {
+            document.getElementById('statTotalCaballos').innerText = mockCaballos.length;
+            document.getElementById('statClasesHoy').innerText = mockAgenda.length;
+            document.getElementById('statCampanasActivas').innerText = mockCampanas.filter(c => c.estado === 'activa').length;
+            document.getElementById('statTotalStaff').innerText = mockPersonas.filter(p => p.es_staff).length;
+        }
+
+        // --- PESEBRERA ---
+        function renderPesebreras() {
+            const container = document.getElementById('pesebreraGrid');
+            container.innerHTML = '';
+            for (let i = 1; i <= 12; i++) {
+                const caballoEnBox = mockCaballos.find(c => c.box === i);
+                container.innerHTML += `
+                    <div class="bg-slate-800 border border-slate-700 p-4 rounded-xl shadow">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold text-amber-400">Box #${i}</span>
+                            <span class="text-xs px-2 py-0.5 rounded-full ${caballosOcupado(i) ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-400'}">
+                                ${caballosOcupado(i) ? 'Ocupado' : 'Disponible'}
+                            </span>
+                        </div>
+                        <p class="text-sm font-semibold">${caballosOcupado(i) ? caballoEnBox.nombre : 'Sin asignar'}</p>
+                        <p class="text-xs text-slate-400 mt-1">${caballosOcupado(i) ? 'Dueño: ' + caballoEnBox.propietario : 'Pesebrera libre'}</p>
+                    </div>
+                `;
+            }
+        }
+        function caballosOcupado(boxNum) {
+            return mockCaballos.some(c => c.box === boxNum);
+        }
+
+        // --- CUADRA ---
+        function renderCaballos() {
+            const tbody = document.getElementById('tablaCaballosBody');
+            tbody.innerHTML = mockCaballos.map(c => `
+                <tr class="hover:bg-slate-750">
+                    <td class="p-3 font-medium text-white">${c.nombre}</td>
+                    <td class="p-3">Box #${c.box}</td>
+                    <td class="p-3"><span class="px-2 py-0.5 bg-slate-700 rounded text-xs">${c.tipo}</span></td>
+                    <td class="p-3">${c.propietario}</td>
+                    <td class="p-3"><span class="px-2 py-0.5 bg-emerald-900 text-emerald-300 rounded text-xs">${c.estado}</span></td>
+                    <td class="p-3 text-right">
+                        <button onclick="alert('Detalle caballo ${c.nombre}')" class="text-amber-400 hover:text-amber-300 text-xs"><i class="fa-solid fa-eye"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        function openModalCaballo() { alert('Modal de nuevo caballo (Mock)'); }
+
+        // --- AGENDA ---
+        function renderAgenda() {
+            const tbody = document.getElementById('tablaAgendaBody');
+            tbody.innerHTML = mockAgenda.map(a => `
+                <tr class="hover:bg-slate-750">
+                    <td class="p-3">${a.fecha}</td>
+                    <td class="p-3 font-semibold text-amber-300">${a.tipo}</td>
+                    <td class="p-3">${a.detalle}</td>
+                    <td class="p-3">${a.profesor}</td>
+                    <td class="p-3 text-xs">
+                        <span class="text-emerald-400">Profe: ✔</span> | <span class="text-sky-400">Ordenanza: ✔</span>
+                    </td>
+                    <td class="p-3 text-right">
+                        <button onclick="alert('Opciones de clase')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        function openModalClase() { alert('Modal de agendamiento (Mock)'); }
+
+        // --- PERSONAS (SOCIOS Y STAFF) ---
+        function filtrarPersonas(filtro) {
+            currentPersonaFilter = filtro;
+            ['todos', 'socios', 'duenos', 'staff'].forEach(f => {
+                const btn = document.getElementById(`filter-btn-${f}`);
+                if (f === filtro) {
+                    btn.classList.remove('bg-slate-700', 'text-slate-300');
+                    btn.classList.add('bg-amber-600', 'text-white');
+                } else {
+                    btn.classList.remove('bg-amber-600', 'text-white');
+                    btn.classList.add('bg-slate-700', 'text-slate-300');
+                }
+            });
+            renderPersonas();
+        }
+
+        function renderPersonas() {
+            const tbody = document.getElementById('tablaPersonasBody');
+            let filtradas = mockPersonas;
+            if (currentPersonaFilter === 'socios') filtradas = mockPersonas.filter(p => p.es_socio);
+            if (currentPersonaFilter === 'duenos') filtradas = mockPersonas.filter(p => p.es_dueno);
+            if (currentPersonaFilter === 'staff') filtradas = mockPersonas.filter(p => p.es_staff);
+
+            tbody.innerHTML = filtradas.map(p => {
+                let badges = [];
+                if (p.es_socio) badges.push(`<span class="px-2 py-0.5 bg-blue-900 text-blue-300 rounded text-xs font-medium">Socio</span>`);
+                if (p.es_dueno) badges.push(`<span class="px-2 py-0.5 bg-amber-900 text-amber-300 rounded text-xs font-medium">Dueño</span>`);
+                if (p.es_staff) badges.push(`<span class="px-2 py-0.5 bg-purple-900 text-purple-300 rounded text-xs font-semibold">Staff</span>`);
+
+                let staffDetail = '-';
+                if (p.es_staff) {
+                    const condColor = p.staff_condicion === 'Interno' ? 'text-emerald-400' : 'text-sky-400';
+                    staffDetail = `<span class="font-semibold text-purple-300">${p.staff_rol || 'Staff'}</span> (<span class="${condColor}">${p.staff_condicion || 'Interno'}</span>)`;
+                }
+
+                return `
+                    <tr class="hover:bg-slate-750">
+                        <td class="p-3 font-medium text-white">${p.nombre}</td>
+                        <td class="p-3 text-xs text-slate-300">${p.telefono || 'Sin tel'} <br> ${p.email || ''}</td>
+                        <td class="p-3 space-x-1">${badges.join(' ')}</td>
+                        <td class="p-3 text-sm">${staffDetail}</td>
+                        <td class="p-3 text-right">
+                            <button onclick="editarPersona(${p.id})" class="text-amber-400 hover:text-amber-300 text-xs mr-2"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="eliminarPersona(${p.id})" class="text-red-400 hover:text-red-300 text-xs"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function openModalPersona() {
+            document.getElementById('personaId').value = '';
+            document.getElementById('personaNombre').value = '';
+            document.getElementById('personaTelefono').value = '';
+            document.getElementById('personaEmail').value = '';
+            document.getElementById('checkSocio').checked = false;
+            document.getElementById('checkDueno').checked = false;
+            document.getElementById('checkStaff').checked = false;
+            document.getElementById('staffRol').value = 'Profesor';
+            document.getElementById('staffCondicion').value = 'Interno';
+            document.getElementById('staffOptionsContainer').classList.add('hidden');
+            document.getElementById('modalPersonaTitle').innerText = 'Nueva Persona';
+            document.getElementById('modalPersona').classList.remove('hidden');
+        }
+
+        function closeModalPersona() {
+            document.getElementById('modalPersona').classList.add('hidden');
+        }
+
+        function toggleStaffOptions() {
+            const isStaff = document.getElementById('checkStaff').checked;
+            const container = document.getElementById('staffOptionsContainer');
+            if (isStaff) {
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+
+        function guardarPersona(e) {
+            e.preventDefault();
+            const id = document.getElementById('personaId').value;
+            const nueva = {
+                id: id ? parseInt(id) : Date.now(),
+                nombre: document.getElementById('personaNombre').value,
+                telefono: document.getElementById('personaTelefono').value,
+                email: document.getElementById('personaEmail').value,
+                es_socio: document.getElementById('checkSocio').checked,
+                es_dueno: document.getElementById('checkDueno').checked,
+                es_staff: document.getElementById('checkStaff').checked,
+                staff_rol: document.getElementById('checkStaff').checked ? document.getElementById('staffRol').value : '',
+                staff_condicion: document.getElementById('checkStaff').checked ? document.getElementById('staffCondicion').value : ''
+            };
+
+            if (id) {
+                const idx = mockPersonas.findIndex(p => p.id === nueva.id);
+                if (idx !== -1) mockPersonas[idx] = nueva;
+            } else {
+                mockPersonas.push(nueva);
+            }
+
+            closeModalPersona();
+            renderPersonas();
+            renderDashboard();
+        }
+
+        function editarPersona(id) {
+            const p = mockPersonas.find(item => item.id === id);
+            if (!p) return;
+            document.getElementById('personaId').value = p.id;
+            document.getElementById('personaNombre').value = p.nombre;
+            document.getElementById('personaTelefono').value = p.telefono || '';
+            document.getElementById('personaEmail').value = p.email || '';
+            document.getElementById('checkSocio').checked = !!p.es_socio;
+            document.getElementById('checkDueno').checked = !!p.es_dueno;
+            document.getElementById('checkStaff').checked = !!p.es_staff;
+            document.getElementById('staffRol').value = p.staff_rol || 'Profesor';
+            document.getElementById('staffCondicion').value = p.staff_condicion || 'Interno';
+            
+            if (p.es_staff) {
+                document.getElementById('staffOptionsContainer').classList.remove('hidden');
+            } else {
+                document.getElementById('staffOptionsContainer').classList.add('hidden');
+            }
+
+            document.getElementById('modalPersonaTitle').innerText = 'Editar Persona';
+            document.getElementById('modalPersona').classList.remove('hidden');
+        }
+
+        function eliminarPersona(id) {
+            if (confirm('¿Estás seguro de eliminar a esta persona?')) {
+                mockPersonas = mockPersonas.filter(p => p.id !== id);
+                renderPersonas();
+                renderDashboard();
+            }
+        }
+
+        // --- CAMPAÑAS & CUENTAS (Stubs) ---
+        function renderCampanas() { document.getElementById('campanasContainer').innerHTML = `<p class="text-slate-400 text-sm">No hay campañas sanitarias activas en este momento.</p>`; }
+        function openModalCampana() { alert('Modal campaña (Mock)'); }
+        function renderCuentas() { document.getElementById('tablaCuentasBody').innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">Sin cuentas pendientes.</td></tr>`; }
+    </script>
+</body>
+</html>
