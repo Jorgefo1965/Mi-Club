@@ -271,7 +271,6 @@
                 <span class="text-base">💰</span><span>Cuentas</span>
             </button>
         </nav>
-
         <!-- MODAL CAMBIAR MI CLAVE -->
         <div id="changePasswordModal" class="fixed inset-0 modal-backdrop hidden z-[110] flex items-center justify-center p-3">
             <div class="bg-hipo-card w-full max-w-sm rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl">
@@ -307,7 +306,7 @@
                         </div>
                         <span id="fullCampSubtitle" class="text-xs text-hipo-textMuted font-medium block mt-0.5">Fármaco y detalles</span>
                     </div>
-                    <button id="btnCloseFullCampModal" class="bg-hipo-danger/20 hover:bg-hipo-danger/40 text-hipo-danger border border-hipo-danger/40 text-xs font-bold px-3 py-2 rounded-xl transition-all flex items-center gap-1 shadow">
+                    <button id="btnCloseFullCampModal" class="bg-hipo-danger/25 hover:bg-hipo-danger/40 text-hipo-danger border border-hipo-danger/40 text-xs font-bold px-3 py-2 rounded-xl transition-all flex items-center gap-1 shadow">
                         <span>✕</span> <span>Cerrar / Volver</span>
                     </button>
                 </div>
@@ -598,7 +597,7 @@
                 </div>
 
                 <div class="flex gap-2 pt-1">
-                    <button id="btnEditCurrentHorse" class="w-1/2 bg-hipo-warning/20 border border-hipo-warning/40 text-hipo-warning font-bold p-2.5 rounded-xl text-xs">
+                    <button id="btnEditCurrentHorse" class="w-1/2 bg-hipo-warning/25 border border-hipo-warning/40 text-hipo-warning font-bold p-2.5 rounded-xl text-xs">
                         ✏️ Editar Ficha Completa
                     </button>
                     <button id="btnCloseHorseDetailModalBottom" class="w-1/2 bg-hipo-cardLight text-white font-bold p-2.5 rounded-xl text-xs">
@@ -1477,6 +1476,14 @@
             await db.from('campana_detalles').update({ aplicado: true, fecha_aplicacion: nowIso }).eq('id', detailId);
 
             if (campObj.costo_por_caballo > 0) {
+                let targetPersonaIdForBalance = horseObj.ownerPersonaId;
+                if (targetPersonaIdForBalance) {
+                    const ownerPersona = personas.find(p => p.id === targetPersonaIdForBalance);
+                    if (ownerPersona && ownerPersona.es_alumno && ownerPersona.es_menor && ownerPersona.apoderado_id) {
+                        targetPersonaIdForBalance = Number(ownerPersona.apoderado_id);
+                    }
+                }
+
                 const currentBalance = Number(horseObj.balance || 0);
                 const newBalance = currentBalance - Number(campObj.costo_por_caballo);
                 await db.from('caballos').update({ saldo: newBalance }).eq('id', horseObj.id);
@@ -1692,7 +1699,11 @@
             if (currentRole === 'client' && currentPersonaUser) {
                 dom.modalStudentSelect.disabled = false;
                 
-                let allowedJinetes = [{ nombre: currentPersonaUser.nombre, id: currentPersonaUser.id }];
+                let allowedJinetes = [];
+                const esJinetteActivo = currentPersonaUser.es_alumno || currentPersonaUser.es_propietario;
+                if (esJinetteActivo && !currentPersonaUser.es_apoderado_puro) {
+                    allowedJinetes.push({ nombre: currentPersonaUser.nombre, id: currentPersonaUser.id });
+                }
                 
                 if (currentPersonaUser.es_apoderado || currentPersonaUser.es_propietario) {
                     const pupilos = personas.filter(p => p.apoderado_id == currentPersonaUser.id);
@@ -1886,6 +1897,9 @@
                 let linkedHorses = horses.filter(h => h.ownerPersonaId == p.id);
                 let horsesStr = linkedHorses.length > 0 ? linkedHorses.map(h => h.name).join(', ') : 'Sin caballos registrados';
 
+                let pupilosList = personas.filter(pupilo => pupilo.apoderado_id == p.id);
+                let pupilosStr = pupilosList.length > 0 ? pupilosList.map(pupilo => pupilo.nombre).join(', ') : '';
+
                 div.innerHTML = `
                     <div class="flex justify-between items-start border-b border-hipo-border pb-1.5">
                         <div>
@@ -1896,6 +1910,7 @@
                     </div>
                     <div class="text-[11px] text-hipo-textMuted space-y-0.5">
                         ${p.es_propietario ? `<div>Caballos: <strong class="text-white">${horsesStr}</strong></div>` : ''}
+                        ${p.es_apoderado ? `<div>Pupilos a Cargo: <strong class="text-white">${pupilosStr || 'Ninguno asignado'}</strong></div>` : ''}
                         ${p.es_alumno ? `<div>Nivel: <strong class="text-white">${p.nivel_hipico}</strong> (Profe: ${p.profesor_asignado || 'Club'})</div>` : ''}
                     </div>
                 `;
@@ -2061,12 +2076,12 @@
             filteredClasses.forEach(c => {
                 const div = document.createElement('div');
                 div.className = c.anulada 
-                    ? "bg-hipo-danger/10 p-3 rounded-2xl border border-hipo-danger/30 space-y-2 opacity-80"
+                    ? "bg-hipo-danger/15 p-3 rounded-2xl border border-hipo-danger/30 space-y-2 opacity-80"
                     : "bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-2.5";
 
                 let statusBadges = '';
                 if (c.anulada) {
-                    statusBadges = `<span class="bg-hipo-danger/20 text-hipo-danger border border-hipo-danger/40 text-[10px] font-bold px-2 py-0.5 rounded-md">❌ RES. ANULADA</span>`;
+                    statusBadges = `<span class="bg-hipo-danger/25 text-hipo-danger border border-hipo-danger/40 text-[10px] font-bold px-2 py-0.5 rounded-md">❌ RES. ANULADA</span>`;
                 } else {
                     const isFree = c.profe.includes('Monta Libre');
                     const profeBadge = isFree 
@@ -2306,9 +2321,9 @@
         };
 
         function highlightAgendaDayButtons(type) {
-            dom.btnDayToday.className = "py-1.5 rounded-xl font-bold " + (type === 'today' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted border border-hipo-border');
-            dom.btnDayTomorrow.className = "py-1.5 rounded-xl font-bold " + (type === 'tomorrow' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted border border-hipo-border');
-            dom.btnDayAll.className = "py-1.5 rounded-xl font-bold " + (type === 'all' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted border border-hipo-border');
+            dom.btnDayToday.className = "py-1.5 rounded-lg font-bold " + (type === 'today' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted border border-hipo-border');
+            dom.btnDayTomorrow.className = "py-1.5 rounded-lg font-bold " + (type === 'tomorrow' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted border border-hipo-border');
+            dom.btnDayAll.className = "py-1.5 rounded-lg font-bold " + (type === 'all' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted border border-hipo-border');
         }
 
         window.filterUrgentHorsesOnGrid = function() {
