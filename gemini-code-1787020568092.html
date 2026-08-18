@@ -1,0 +1,37 @@
+<script>
+    // ... (todo tu código anterior se mantiene igual, actualizamos solo el manejador del formulario)
+
+    dom.campeonatoForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const nombreVal = dom.campNombre.value.trim();
+        const inicioVal = dom.campInicio.value;
+        const finVal = dom.campFin.value;
+        const ubicacionVal = dom.campUbicacion.value.trim();
+
+        if (!nombreVal || !inicioVal || !finVal) {
+            alert("⚠️ Por favor completa el nombre y las fechas del campeonato.");
+            return;
+        }
+
+        const payload = {
+            nombre: nombreVal,
+            fecha_inicio: inicioVal,
+            fecha_fin: finVal,
+            ubicacion: ubicacionVal || 'Club Ecuestre',
+            estado: 'activo'
+        };
+
+        const { data, error } = await db.from('campeonatos').insert([payload]);
+        
+        if (error) {
+            alert("❌ Error al guardar en Supabase: " + error.message);
+            console.error("Supabase Error:", error);
+            return;
+        }
+
+        dom.campeonatoModal.classList.add('hidden');
+        dom.campeonatoForm.reset();
+        fetchCloudData();
+    });
+</script>
