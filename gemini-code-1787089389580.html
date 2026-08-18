@@ -1,0 +1,3298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lo Arcaya Pro v7.9.1 - Club Ecuestre</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        hipo: {
+                            bg: '#0d1410',
+                            card: '#15201a',
+                            cardLight: '#23332a',
+                            accent: '#7a9e85',
+                            accentHover: '#5e7d67',
+                            border: '#2c3e33',
+                            textMuted: '#8a9e90',
+                            success: '#10b981',
+                            warning: '#f59e0b',
+                            danger: '#ef4444',
+                            purple: '#a855f7'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0d1410; color: white; -webkit-tap-highlight-color: transparent; font-family: system-ui, -apple-system, sans-serif; }
+        .bottom-nav-active { color: #7a9e85 !important; border-top: 2px solid #7a9e85; background-color: rgba(122, 158, 133, 0.08); }
+        select, input, textarea { background-color: #0d1410 !important; border-color: #2c3e33 !important; color: white !important; }
+        .modal-backdrop { background-color: rgba(13, 20, 16, 0.92); backdrop-filter: blur(6px); }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.8) sepia(1) saturate(3) hue-rotate(90deg);
+            cursor: pointer; padding: 4px;
+        }
+    </style>
+</head>
+<body class="pb-20 pt-2 px-3 md:px-6 font-sans antialiased text-slate-100">
+
+    <!-- LOGIN -->
+    <div id="loginScreen" class="fixed inset-0 bg-hipo-bg z-50 flex items-center justify-center p-4">
+        <div class="bg-hipo-card w-full max-w-sm p-6 rounded-2xl border border-hipo-border space-y-4 shadow-2xl text-center">
+            <img src="logo.png" alt="Lo Arcaya" class="w-16 h-16 rounded-full object-cover mx-auto border-2 border-hipo-accent shadow-lg">
+            <div>
+                <h2 class="text-xl font-black text-white">Lo Arcaya</h2>
+                <span class="text-xs text-hipo-textMuted">Club Ecuestre • Acceso Privado</span>
+            </div>
+
+            <form id="loginForm" class="space-y-3 text-left">
+                <div>
+                    <label class="block text-xs text-hipo-textMuted mb-1 font-bold">Perfil / Usuario</label>
+                    <select id="loginRole" class="w-full p-2.5 rounded-xl text-xs font-bold text-white border">
+                        <option value="admin">👑 Administrador</option>
+                        <option value="profe">🎓 Profesor</option>
+                        <option value="ordenanza">🧹 Ordenanza (Pesebrera)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-hipo-textMuted mb-1 font-bold">Contraseña</label>
+                    <input type="password" id="loginPass" placeholder="Ingresa tu clave" required class="w-full p-2.5 rounded-xl text-xs border">
+                </div>
+                <div id="loginError" class="text-hipo-danger text-[11px] font-bold hidden">❌ Usuario o contraseña incorrecta.</div>
+                <button type="submit" class="w-full bg-hipo-accent hover:bg-hipo-accentHover text-hipo-bg font-black py-3 rounded-xl text-xs transition-colors shadow-md">
+                    🔑 Ingresar al Club
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- APP PRINCIPAL -->
+    <div id="appContainer" class="max-w-4xl mx-auto space-y-3 hidden">
+
+        <header class="bg-hipo-card p-3 rounded-2xl border border-hipo-border flex items-center justify-between shadow-lg">
+            <div class="flex items-center gap-3">
+                <img src="logo.png" alt="Lo Arcaya" class="w-10 h-10 rounded-full object-cover shadow-md shrink-0 border border-hipo-border/60">
+                <div>
+                    <div class="flex items-center gap-1.5">
+                        <h1 class="text-base font-black text-white tracking-tight leading-none">Lo Arcaya</h1>
+                        <span id="cloudStatus" class="w-2 h-2 rounded-full bg-hipo-success inline-block shadow-[0_0_8px_#10b981]"></span>
+                    </div>
+                    <span class="text-[10px] text-hipo-textMuted font-medium">Club Ecuestre • v7.9.1 Pro</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-1">
+                <button id="btnChangePassword" class="bg-hipo-cardLight hover:bg-hipo-border text-white text-xs px-2.5 py-1.5 rounded-xl font-bold border border-hipo-border">
+                    🔑 Clave
+                </button>
+                <button id="btnLogout" class="bg-hipo-danger/25 text-hipo-danger border border-hipo-danger/40 text-xs px-2.5 py-1.5 rounded-xl font-bold flex items-center gap-1">
+                    <span>🚪</span> <span id="lblCurrentRoleText">Salir</span>
+                </button>
+            </div>
+        </header>
+
+        <div id="roleBanner" class="bg-hipo-accent/10 border border-hipo-accent/30 p-2.5 rounded-xl text-xs flex items-center justify-between">
+            <span id="roleBannerText" class="font-bold text-hipo-accent text-[11px]">👑 Modo Admin</span>
+            <span class="text-[9px] bg-hipo-accent text-hipo-bg font-extrabold px-2 py-0.5 rounded-md uppercase">SESIÓN ACTIVA</span>
+        </div>
+
+        <!-- DASHBOARD -->
+        <main id="secDash" class="space-y-3">
+            <div class="grid grid-cols-2 gap-2.5">
+                <div onclick="showSection('horses')" class="bg-hipo-card p-3 rounded-2xl border border-hipo-border cursor-pointer hover:border-hipo-accent transition-all">
+                    <span class="text-[10px] text-hipo-textMuted uppercase font-bold block">Caballos Activos</span>
+                    <span id="dashHorseCount" class="text-xl font-black text-white">...</span>
+                    <span class="text-[9px] text-hipo-accent block">Ver Cuadra &rarr;</span>
+                </div>
+                <div onclick="showSection('agenda')" class="bg-hipo-card p-3 rounded-2xl border border-hipo-border cursor-pointer hover:border-hipo-accent transition-all">
+                    <span class="text-[10px] text-hipo-textMuted uppercase font-bold block">Clases Hoy</span>
+                    <span id="dashClassCount" class="text-xl font-black text-white">...</span>
+                    <span class="text-[9px] text-hipo-success block">Ver Agenda &rarr;</span>
+                </div>
+                <div id="cardUrgentShoe" onclick="filterUrgentHorsesOnGrid()" class="bg-hipo-card p-3 rounded-2xl border border-hipo-border cursor-pointer hover:border-hipo-warning transition-all">
+                    <span class="text-[10px] text-hipo-textMuted uppercase font-bold block">Herrajes Urgentes</span>
+                    <span id="dashUrgentShoe" class="text-xl font-black text-hipo-warning">...</span>
+                    <span class="text-[9px] text-hipo-warning block">&le; 3 Días (Filtrar) &rarr;</span>
+                </div>
+                <div id="cardCampaigns" onclick="showSection('campaigns')" class="bg-hipo-card p-3 rounded-2xl border border-hipo-border cursor-pointer hover:border-hipo-purple transition-all">
+                    <span class="text-[10px] text-hipo-textMuted uppercase font-bold block">Campañas Activas</span>
+                    <span id="dashActiveCampaignsCount" class="text-xl font-black text-hipo-purple">...</span>
+                    <span class="text-[9px] text-hipo-purple block">Ver Sanitización &rarr;</span>
+                </div>
+            </div>
+
+            <div class="bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-2">
+                <h3 class="text-xs font-bold text-hipo-accent border-b border-hipo-border pb-1.5 flex items-center justify-between">
+                    <span>📅 Clases & Montas de Hoy</span>
+                    <button onclick="fetchCloudData()" class="text-[10px] bg-hipo-accent/20 text-hipo-accent px-2 py-0.5 rounded-md font-bold">🔄 Recargar</button>
+                </h3>
+                <div id="dashTodayClasses" class="space-y-2 text-xs"></div>
+            </div>
+
+            <div id="blockHealthAlertsContainer" class="bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-2">
+                <h3 class="text-xs font-bold text-hipo-warning border-b border-hipo-border pb-1.5 flex items-center justify-between">
+                    <span>⚠️ Alertas Sanitarias Urgentes</span>
+                </h3>
+                <div id="dashHealthAlerts" class="space-y-2 text-xs"></div>
+            </div>
+        </main>
+
+        <!-- SECCIÓN CAMIÓN & CAMPEONATOS -->
+        <main id="secCamion" class="space-y-4 hidden">
+            <div class="flex justify-between items-center gap-2">
+                <h2 class="font-bold text-xs text-hipo-accent flex items-center gap-1.5">
+                    <span>🏆</span> Campeonatos, Inscripciones y Salidas de Camión
+                </h2>
+                <button id="btnOpenNewCampeonatoModal" class="bg-hipo-accent hover:bg-hipo-accentHover text-hipo-bg font-black px-3 py-2 rounded-xl text-xs shadow-md">
+                    ➕ Crear Campeonato
+                </button>
+            </div>
+
+            <div id="campeonatosList" class="space-y-3"></div>
+        </main>
+
+        <!-- SECCIÓN MULTICAMPAÑA SANITARIA -->
+        <main id="secCampaigns" class="space-y-3 hidden">
+            <div class="flex justify-between items-center gap-2">
+                <h2 class="font-bold text-xs text-hipo-accent flex items-center gap-1.5">
+                    <span>💉</span> Campañas Sanitarias Vigentes
+                </h2>
+                <button id="btnOpenNewCampaignModal" class="bg-hipo-accent hover:bg-hipo-accentHover text-hipo-bg font-black px-3 py-2 rounded-xl text-xs shadow-md">
+                    ➕ Crear Campaña
+                </button>
+            </div>
+
+            <div id="campaignsActiveList" class="space-y-3"></div>
+
+            <div class="pt-4 border-t border-hipo-border/60">
+                <button id="btnToggleHistoryCampaigns" class="w-full bg-hipo-card border border-hipo-border p-3 rounded-2xl text-xs font-bold text-hipo-textMuted flex items-center justify-between">
+                    <span>📜 Ver Historial de Campañas Completadas</span>
+                    <span id="lblHistoryCount" class="text-[10px] bg-hipo-bg px-2 py-0.5 rounded text-white">0</span>
+                </button>
+                <div id="campaignsHistoryList" class="space-y-3 mt-3 hidden"></div>
+            </div>
+        </main>
+
+        <!-- PESEBRERA / ORDENANZA -->
+        <main id="secOrdenanza" class="space-y-3 hidden">
+            <div class="bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-3">
+                <h2 class="font-bold text-xs text-hipo-accent flex items-center gap-1.5"><span>⏰</span> Programa de Monta Diaria (Hoy)</h2>
+                <div class="space-y-2" id="ordenanzaRidingList"></div>
+            </div>
+
+            <div class="bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-3">
+                <h2 class="font-bold text-xs text-hipo-warning flex items-center gap-1.5"><span>🌾</span> Pauta de Alimentación por Box</h2>
+                <div class="space-y-2" id="ordenanzaFeedList"></div>
+            </div>
+        </main>
+
+        <!-- CUADRA -->
+        <main id="secHorses" class="space-y-3 hidden">
+            <div class="flex justify-between items-center gap-2">
+                <div class="grid grid-cols-4 gap-1 bg-hipo-card p-1.5 rounded-xl border border-hipo-border text-[11px] flex-1">
+                    <button id="filterAllHorses" class="py-1.5 rounded-lg font-bold bg-hipo-accent text-hipo-bg">Todos</button>
+                    <button id="filterParticularHorses" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted">Particulares</button>
+                    <button id="filterSchoolHorses" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted">Escuela</button>
+                    <button id="filterInactiveHorses" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted">Inactivos</button>
+                </div>
+                <button id="btnOpenNewHorseModal" class="bg-hipo-accent hover:bg-hipo-accentHover text-hipo-bg font-black px-3 py-2.5 rounded-xl text-xs shrink-0 shadow-md">
+                    ➕ Nuevo
+                </button>
+            </div>
+
+            <input type="text" id="searchHorse" placeholder="🔍 Buscar caballo, dueño o filtro..." class="w-full p-2.5 rounded-xl text-xs border">
+            <div id="horsesGrid" class="space-y-3"></div>
+        </main>
+
+        <!-- AGENDA DE CLASES -->
+        <main id="secAgenda" class="space-y-3 hidden">
+            <button id="btnOpenClassModal" class="w-full bg-hipo-accent hover:bg-hipo-accentHover text-hipo-bg py-3 rounded-xl font-extrabold text-xs shadow-lg flex items-center justify-center gap-2">
+                <span>➕</span> Agendar Nueva Clase / Monta Libre
+            </button>
+
+            <div class="bg-hipo-card p-3 rounded-2xl border border-hipo-border space-y-2.5">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-hipo-accent flex items-center gap-1.5">
+                        <span>🗓️</span> Seleccionar Día:
+                    </span>
+                    <input type="date" id="classDatePicker" class="p-2 rounded-xl text-xs font-bold text-white border bg-hipo-bg shadow-inner cursor-pointer">
+                </div>
+                <div class="grid grid-cols-3 gap-1.5 text-[11px]">
+                    <button id="btnDayToday" class="py-1.5 rounded-lg font-bold bg-hipo-accent text-hipo-bg">Hoy</button>
+                    <button id="btnDayTomorrow" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted border border-hipo-border">Mañana</button>
+                    <button id="btnDayAll" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted border border-hipo-border">Ver Todas</button>
+                </div>
+            </div>
+
+            <div id="agendaList" class="space-y-2.5"></div>
+        </main>
+
+        <!-- SECCIÓN PERSONAS -->
+        <main id="secPeople" class="space-y-3 hidden">
+            <div class="flex justify-between items-center gap-2">
+                <div class="grid grid-cols-5 gap-1 bg-hipo-card p-1.5 rounded-xl border border-hipo-border text-[9px] flex-1">
+                    <button id="filterPeopleAll" class="py-1.5 rounded-lg font-bold bg-hipo-accent text-hipo-bg">Todos</button>
+                    <button id="filterPeopleProp" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted">Dueños</button>
+                    <button id="filterPeopleAlum" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted">Alumnos</button>
+                    <button id="filterPeopleApod" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted">Apoder.</button>
+                    <button id="filterPeopleStaff" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted">Staff</button>
+                </div>
+                <button onclick="openPersonaModal()" class="bg-hipo-accent hover:bg-hipo-accentHover text-hipo-bg font-black px-3 py-2.5 rounded-xl text-xs shrink-0 shadow-md">
+                    ➕ Nueva Persona
+                </button>
+            </div>
+
+            <input type="text" id="searchPersona" placeholder="🔍 Buscar por nombre, RUT o teléfono..." class="w-full p-2.5 rounded-xl text-xs border">
+            <div id="personasGrid" class="space-y-2.5"></div>
+        </main>
+
+        <!-- CUENTAS -->
+        <main id="secFinance" class="space-y-3 hidden">
+            <div class="bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-2">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h2 id="financeTitle" class="font-bold text-xs text-hipo-success">💰 Estado de Cuentas - Lo Arcaya</h2>
+                </div>
+                <div id="financeContent" class="space-y-2"></div>
+            </div>
+        </main>
+
+        <!-- BARRA INFERIOR DE NAVEGACIÓN -->
+        <nav class="fixed bottom-0 left-0 right-0 bg-hipo-card/95 backdrop-blur-md border-t border-hipo-border py-1.5 px-2 flex items-center justify-around z-40">
+            <button id="navDash" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[10px] font-bold bottom-nav-active py-1 px-1.5 rounded-lg">
+                <span class="text-base">📊</span><span>Inicio</span>
+            </button>
+            <button id="navCamion" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[10px] font-bold py-1 px-1.5 rounded-lg">
+                <span class="text-base">🚚</span><span>Camión</span>
+            </button>
+            <button id="navOrdenanza" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[10px] font-bold py-1 px-1.5 rounded-lg">
+                <span class="text-base">🧹</span><span>Pesebrera</span>
+            </button>
+            <button id="navHorses" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[10px] font-bold py-1 px-1.5 rounded-lg">
+                <span class="text-base">🐎</span><span>Cuadra</span>
+            </button>
+            <button id="navCampaigns" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[10px] font-bold py-1 px-1.5 rounded-lg">
+                <span class="text-base">💉</span><span>Campañas</span>
+            </button>
+            <button id="navPeople" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[10px] font-bold py-1 px-1.5 rounded-lg">
+                <span class="text-base">👥</span><span>Personas</span>
+            </button>
+            <button id="navAgenda" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[10px] font-bold py-1 px-1.5 rounded-lg">
+                <span class="text-base">📅</span><span>Clases</span>
+            </button>
+            <button id="navFinance" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[10px] font-bold py-1 px-1.5 rounded-lg">
+                <span class="text-base">💰</span><span>Cuentas</span>
+            </button>
+        </nav>
+
+        <!-- MODAL CAMPEONATO -->
+        <div id="campeonatoModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-md rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 class="text-xs font-bold text-white">🏆 Crear Nuevo Campeonato</h3>
+                    <button id="btnCloseCampeonatoModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+                <form id="campeonatoForm" class="space-y-2.5 text-xs">
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Nombre del Campeonato</label>
+                        <input type="text" id="campNombre" required placeholder="Ej: Concurso Clásico Primavera" class="w-full p-2 rounded-xl text-xs font-bold">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Fecha Inicio</label>
+                            <input type="date" id="campInicio" required class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Fecha Fin</label>
+                            <input type="date" id="campFin" required class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Ubicación / Club</label>
+                        <input type="text" id="campUbicacion" placeholder="Ej: Club de Polo San Cristóbal" class="w-full p-2 rounded-xl text-xs">
+                    </div>
+                    <button type="submit" class="w-full bg-hipo-accent text-hipo-bg font-black p-2.5 rounded-xl text-xs shadow-md">
+                        ✔ Crear Campeonato
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL INSCRIPCIÓN A PRUEBA -->
+        <div id="inscripcionModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-md rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 class="text-xs font-bold text-white">📝 Inscribir Participación en Prueba</h3>
+                    <button id="btnCloseInscripcionModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+                <form id="inscripcionForm" class="space-y-2.5 text-xs">
+                    <input type="hidden" id="inscripcionCampId">
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Jinete / Alumno</label>
+                        <select id="insJineteSelect" required class="w-full p-2.5 rounded-xl text-xs font-bold text-white border"></select>
+                    </div>
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Caballo Asignado</label>
+                        <select id="insCaballoSelect" required class="w-full p-2.5 rounded-xl text-xs font-bold text-hipo-accent border"></select>
+                    </div>
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Fecha de la Prueba <span id="lblInsFechaRango" class="text-hipo-accent text-[10px] font-normal"></span></label>
+                        <input type="date" id="insFecha" required class="w-full p-2.5 rounded-xl text-xs font-bold border text-white bg-hipo-bg">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Prueba / Recorrido</label>
+                            <select id="insPrueba" required class="w-full p-2.5 rounded-xl text-xs font-bold text-white border">
+                                <option value="90 cm (0.90m)">90 cm (0.90m)</option>
+                                <option value="1.00m">1.00m</option>
+                                <option value="1.05m">1.05m</option>
+                                <option value="1.10m" selected>1.10m</option>
+                                <option value="1.15m">1.15m</option>
+                                <option value="1.20m">1.20m</option>
+                                <option value="1.30m">1.30m</option>
+                                <option value="1.35m">1.35m</option>
+                                <option value="1.40m">1.40m</option>
+                                <option value="1.50m">1.50m</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Hora Participación</label>
+                            <select id="insHora" required class="w-full p-2.5 rounded-xl text-xs font-bold text-white border">
+                                <option value="08:00 hrs">08:00 hrs</option>
+                                <option value="08:30 hrs">08:30 hrs</option>
+                                <option value="09:00 hrs">09:00 hrs</option>
+                                <option value="09:30 hrs">09:30 hrs</option>
+                                <option value="10:00 hrs">10:00 hrs</option>
+                                <option value="10:30 hrs">10:30 hrs</option>
+                                <option value="11:00 hrs">11:00 hrs</option>
+                                <option value="11:30 hrs" selected>11:30 hrs</option>
+                                <option value="12:00 hrs">12:00 hrs</option>
+                                <option value="12:30 hrs">12:30 hrs</option>
+                                <option value="13:00 hrs">13:00 hrs</option>
+                                <option value="13:30 hrs">13:30 hrs</option>
+                                <option value="14:00 hrs">14:00 hrs</option>
+                                <option value="14:30 hrs">14:30 hrs</option>
+                                <option value="15:00 hrs">15:00 hrs</option>
+                                <option value="15:30 hrs">15:30 hrs</option>
+                                <option value="16:00 hrs">16:00 hrs</option>
+                                <option value="16:30 hrs">16:30 hrs</option>
+                                <option value="17:00 hrs">17:00 hrs</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-hipo-accent text-hipo-bg font-black p-2.5 rounded-xl text-xs shadow-md">
+                        ✔ Guardar Inscripción
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL SALIDA DE CAMIÓN -->
+        <div id="viajeModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-md rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 class="text-xs font-bold text-white">🚚 Planificar Salida de Camión</h3>
+                    <button id="btnCloseViajeModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+                <form id="viajeForm" class="space-y-2.5 text-xs">
+                    <input type="hidden" id="viajeCampId">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Fecha del Viaje <span id="lblVFechaRango" class="text-hipo-accent text-[10px] font-normal block"></span></label>
+                            <input type="date" id="vFecha" required class="w-full p-2 rounded-xl text-xs font-bold text-white border bg-hipo-bg cursor-pointer">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Hora Salida Club</label>
+                            <select id="vHora" required class="w-full p-2 rounded-xl text-xs font-bold text-white border">
+                                <option value="04:00 hrs">04:00 hrs</option>
+                                <option value="04:30 hrs">04:30 hrs</option>
+                                <option value="05:00 hrs">05:00 hrs</option>
+                                <option value="05:30 hrs">05:30 hrs</option>
+                                <option value="06:00 hrs">06:00 hrs</option>
+                                <option value="06:30 hrs">06:30 hrs</option>
+                                <option value="07:00 hrs" selected>07:00 hrs</option>
+                                <option value="07:30 hrs">07:30 hrs</option>
+                                <option value="08:00 hrs">08:00 hrs</option>
+                                <option value="08:30 hrs">08:30 hrs</option>
+                                <option value="09:00 hrs">09:00 hrs</option>
+                                <option value="09:30 hrs">09:30 hrs</option>
+                                <option value="10:00 hrs">10:00 hrs</option>
+                                <option value="10:30 hrs">10:30 hrs</option>
+                                <option value="11:00 hrs">11:00 hrs</option>
+                                <option value="11:30 hrs">11:30 hrs</option>
+                                <option value="12:00 hrs">12:00 hrs</option>
+                                <option value="12:30 hrs">12:30 hrs</option>
+                                <option value="13:00 hrs">13:00 hrs</option>
+                                <option value="13:30 hrs">13:30 hrs</option>
+                                <option value="14:00 hrs">14:00 hrs</option>
+                                <option value="14:30 hrs">14:30 hrs</option>
+                                <option value="15:00 hrs">15:00 hrs</option>
+                                <option value="15:30 hrs">15:30 hrs</option>
+                                <option value="16:00 hrs">16:00 hrs</option>
+                                <option value="16:30 hrs">16:30 hrs</option>
+                                <option value="17:00 hrs">17:00 hrs</option>
+                                <option value="17:30 hrs">17:30 hrs</option>
+                                <option value="18:00 hrs">18:00 hrs</option>
+                                <option value="18:30 hrs">18:30 hrs</option>
+                                <option value="19:00 hrs">19:00 hrs</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Chofer Asignado</label>
+                        <input type="text" id="vChofer" placeholder="Nombre del chofer" class="w-full p-2 rounded-xl text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-hipo-accent mb-1 font-bold">Caballos Inscritos para esta Fecha (disponibles para viajar):</label>
+                        <div id="vCaballosChecklist" class="space-y-1 max-h-44 overflow-y-auto p-2 bg-hipo-bg rounded-xl border border-hipo-border text-[11px]"></div>
+                    </div>
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1">Observaciones / Ruta</label>
+                        <textarea id="vObs" rows="2" placeholder="Detalles de carga o indicaciones..." class="w-full p-2 rounded-xl text-xs"></textarea>
+                    </div>
+                    <button type="submit" id="btnSaveViaje" class="w-full bg-hipo-accent text-hipo-bg font-black p-2.5 rounded-xl text-xs shadow-md hover:bg-hipo-accentHover transition-colors">
+                        💾 Guardar Viaje de Camión
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL CAMBIAR MI CLAVE -->
+        <div id="changePasswordModal" class="fixed inset-0 modal-backdrop hidden z-[110] flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-sm rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 class="text-xs font-bold text-white">🔑 Cambiar Mi Contraseña</h3>
+                    <button id="btnCloseChangePasswordModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+
+                <form id="changePasswordForm" class="space-y-2.5 text-xs">
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Nueva Contraseña</label>
+                        <input type="password" id="newPasswordInput" required placeholder="Ingresa tu nueva clave" class="w-full p-2.5 rounded-xl text-xs font-bold border">
+                    </div>
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Confirmar Nueva Contraseña</label>
+                        <input type="password" id="confirmPasswordInput" required placeholder="Repite la clave" class="w-full p-2.5 rounded-xl text-xs font-bold border">
+                    </div>
+                    <button type="submit" class="w-full bg-hipo-accent text-hipo-bg font-black p-2.5 rounded-xl text-xs shadow-md">
+                        💾 Actualizar Mi Clave
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL CAMPAÑA PANTALLA COMPLETA -->
+        <div id="campaignFullscreenModal" class="fixed inset-0 bg-hipo-bg z-[100] hidden flex flex-col p-3 md:p-6 overflow-hidden">
+            <div class="bg-hipo-card p-4 rounded-2xl border border-hipo-border shadow-2xl flex flex-col h-full space-y-3">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-3 shrink-0">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 id="fullCampTitle" class="text-base font-black text-white">Título Campaña</h2>
+                            <span id="fullCampTypeBadge" class="text-[9px] font-bold px-2 py-0.5 rounded uppercase">Tipo</span>
+                        </div>
+                        <span id="fullCampSubtitle" class="text-xs text-hipo-textMuted font-medium block mt-0.5">Fármaco y detalles</span>
+                    </div>
+                    <button id="btnCloseFullCampModal" class="bg-hipo-danger/25 hover:bg-hipo-danger/40 text-hipo-danger border border-hipo-danger/40 text-xs font-bold px-3 py-2 rounded-xl transition-all flex items-center gap-1 shadow">
+                        <span>✕</span> <span>Cerrar / Volver</span>
+                    </button>
+                </div>
+
+                <div id="fullCampProgressBlock" class="bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-1.5 shrink-0">
+                    <div class="flex justify-between text-xs font-bold">
+                        <span class="text-hipo-textMuted">Avance General:</span>
+                        <span id="fullCampProgressLabel" class="text-hipo-accent">0 / 0 (0%)</span>
+                    </div>
+                    <div class="w-full bg-hipo-card h-2.5 rounded-full overflow-hidden border border-hipo-border">
+                        <div id="fullCampProgressBar" class="bg-hipo-accent h-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <input type="text" id="searchFullCampHorse" placeholder="🔍 Buscar caballo, box o dueño en esta campaña..." class="w-full p-2.5 rounded-xl text-xs border shrink-0">
+
+                <div id="fullCampHorsesList" class="space-y-2 flex-1 overflow-y-auto pr-1"></div>
+            </div>
+        </div>
+
+        <!-- MODAL CREAR CAMPAÑA -->
+        <div id="newCampaignModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-md rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 class="text-xs font-bold text-white">🚀 Crear Nueva Campaña Sanitaria</h3>
+                    <button id="btnCloseNewCampaignModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+
+                <form id="newCampaignForm" class="space-y-2.5 text-xs">
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Título de la Campaña</label>
+                        <input type="text" id="campTitle" required placeholder="Ej: Vacunación Influenza Agosto 2026" class="w-full p-2 rounded-xl text-xs font-bold">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Tipo Control</label>
+                            <select id="campType" class="w-full p-2 rounded-xl text-xs font-bold text-white border">
+                                <option value="vacuna">💉 Vacuna</option>
+                                <option value="desparasitante">🪱 Desparasitante</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Fármaco / Específico</label>
+                            <input type="text" id="campProduct" required placeholder="Ej: Influenza / Ivermectina" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Costo p/Caballo ($)</label>
+                            <input type="number" id="campCost" placeholder="Ej: 15000" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Próx. Refuerzo</label>
+                            <input type="date" id="campNextDate" required class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-hipo-accent text-hipo-bg font-black p-2.5 rounded-xl text-xs">
+                        ✔ Crear Campaña y Generar Lista de Trabajo
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL PERSONA -->
+        <div id="personaModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-md rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 id="personaModalTitle" class="text-xs font-bold text-white">👥 Registrar Persona</h3>
+                    <button id="btnClosePersonaModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+
+                <form id="personaForm" class="space-y-2.5 text-xs">
+                    <input type="hidden" id="personaId">
+
+                    <div>
+                        <label class="block text-hipo-accent mb-1 font-bold">Condición / Rol en el Club</label>
+                        <div class="grid grid-cols-2 gap-1.5 bg-hipo-bg p-2 rounded-xl border border-hipo-border">
+                            <label class="flex items-center gap-1 cursor-pointer text-[11px]">
+                                <input type="checkbox" id="chkEsPropietario" class="accent-hipo-accent"> 🏡 Dueño
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer text-[11px]">
+                                <input type="checkbox" id="chkEsAlumno" class="accent-hipo-accent"> 🎓 Alumno
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer text-[11px]">
+                                <input type="checkbox" id="chkEsApoderado" class="accent-hipo-accent"> 🛡️ Apoderado
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer text-[11px]">
+                                <input type="checkbox" id="chkEsStaff" class="accent-hipo-accent"> 🧑‍🔧 Staff
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="blockStaff" class="border-t border-hipo-border/60 pt-2 space-y-2 hidden">
+                        <span class="font-bold text-hipo-accent text-[11px] block">🧑‍🔧 Asignación de Cargo en Staff</span>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Cargo Específico</label>
+                            <select id="pCargoStaff" class="w-full p-2 rounded-xl text-xs font-bold text-white border">
+                                <option value="Ordenanza">🧹 Ordenanza</option>
+                                <option value="Profesor">🎓 Profesor</option>
+                                <option value="Herrero">🔨 Herrero</option>
+                                <option value="Veterinario">🩺 Veterinario</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="col-span-2">
+                            <label class="block text-hipo-textMuted mb-0.5 font-bold">Nombre Completo</label>
+                            <input type="text" id="pNombre" required placeholder="Ej: Jorge Fonck Mutter" class="w-full p-2 rounded-xl text-xs font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-0.5">RUT / ID</label>
+                            <input type="text" id="pRut" placeholder="12.345.678-9" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-0.5">Teléfono</label>
+                            <input type="text" id="pTelefono" placeholder="+56 9..." class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-hipo-textMuted mb-0.5">Email Facturación / Avisos</label>
+                            <input type="email" id="pEmail" placeholder="correo@ejemplo.com" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-hipo-accent mb-0.5 font-bold">🔑 Clave de Acceso App</label>
+                            <input type="text" id="pPassword" placeholder="Clave de usuario (Ej: socio123)" class="w-full p-2 rounded-xl text-xs border font-bold">
+                        </div>
+                    </div>
+
+                    <div id="blockPropietario" class="border-t border-hipo-border/60 pt-2 space-y-2">
+                        <span class="font-bold text-hipo-accent text-[11px] block">🏡 Datos de Propietario / Asignación de Caballos</span>
+                        
+                        <div class="bg-hipo-bg p-2 rounded-xl border border-hipo-border space-y-1.5">
+                            <div class="flex justify-between items-center">
+                                <label class="block text-hipo-textMuted text-[10px] font-bold">Caballos a su Nombre:</label>
+                                <button type="button" onclick="openInlineQuickHorseModal()" class="text-[9px] bg-hipo-accent/20 text-hipo-accent px-2 py-0.5 rounded font-bold">
+                                    ➕ Crear Caballo Rápido
+                                </button>
+                            </div>
+                            <div id="pCaballosChecklist" class="space-y-1 max-h-28 overflow-y-auto pr-1 text-[11px]"></div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Vet Cabecera</label>
+                                <select id="pVet" class="w-full p-2 rounded-xl text-xs font-bold text-white border"></select>
+                            </div>
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Límite Emergencia ($)</label>
+                                <input type="number" id="pMontoMax" placeholder="500000" class="w-full p-2 rounded-xl text-xs">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="blockAlumno" class="border-t border-hipo-border/60 pt-2 space-y-2">
+                        <span class="font-bold text-hipo-purple text-[11px] block">🎓 Datos de Alumno Escuela</span>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Nivel Hípico</label>
+                                <select id="pNivel" class="w-full p-2 rounded-xl text-xs font-bold text-white border">
+                                    <option value="Iniciación">Iniciación</option>
+                                    <option value="Intermedio">Intermedio</option>
+                                    <option value="Salto 1.10m+">Salto / Avanzado</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Profesor Asignado</label>
+                                <select id="pProfesor" class="w-full p-2 rounded-xl text-xs font-bold text-white border"></select>
+                            </div>
+                        </div>
+
+                        <div class="bg-hipo-bg p-2 rounded-xl border border-hipo-border space-y-1.5">
+                            <label class="flex items-center gap-1.5 cursor-pointer text-[11px] font-bold text-hipo-warning">
+                                <input type="checkbox" id="chkEsMenor" class="accent-hipo-warning"> ¿Es Menor de Edad?
+                            </label>
+
+                            <div id="blockApoderadoSelect" class="hidden pt-1 space-y-1">
+                                <div class="flex items-center justify-between">
+                                    <label class="block text-hipo-textMuted text-[10px]">Apoderado Responsable:</label>
+                                    <button type="button" onclick="openInlineQuickApoderadoModal()" class="text-[9px] bg-hipo-accent/20 text-hipo-accent px-2 py-0.5 rounded font-bold">
+                                        ➕ Crear Apoderado Rápido
+                                    </button>
+                                </div>
+                                <select id="pApoderadoId" class="w-full p-2 rounded-xl text-xs font-bold text-white border"></select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Ficha Médica / Alergias / Observaciones</label>
+                            <textarea id="pFichaMedica" rows="2" placeholder="Alergias, seguros o contacto médico..." class="w-full p-2 rounded-xl text-xs"></textarea>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-hipo-accent text-hipo-bg font-black p-2.5 rounded-xl text-xs mt-1">
+                        💾 Guardar Persona en la Nube
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- QUICK INLINE MODAL -->
+        <div id="quickInlineModal" class="fixed inset-0 modal-backdrop hidden z-[60] flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-sm rounded-2xl border border-hipo-accent p-4 space-y-3 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-1.5">
+                    <h4 id="quickInlineTitle" class="text-xs font-bold text-hipo-accent">➕ Creación Rápida</h4>
+                    <button id="btnCloseQuickInlineModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+                <form id="quickInlineForm" class="space-y-2 text-xs">
+                    <input type="hidden" id="quickType">
+                    
+                    <div id="quickPersonFields" class="space-y-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-0.5 font-bold">Nombre Completo</label>
+                            <input type="text" id="qNombre" placeholder="Ej: Juan Pérez" class="w-full p-2 rounded-xl text-xs font-bold">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5">Teléfono</label>
+                                <input type="text" id="qTelefono" placeholder="+56 9..." class="w-full p-2 rounded-xl text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5">RUT / ID</label>
+                                <input type="text" id="qRut" placeholder="12.345.678-9" class="w-full p-2 rounded-xl text-xs">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="quickHorseFields" class="space-y-2 hidden">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-0.5 font-bold">Nombre del Caballo</label>
+                            <input type="text" id="qHorseName" placeholder="Ej: Sultan" class="w-full p-2 rounded-xl text-xs font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-0.5 font-bold">Box</label>
+                            <input type="text" id="qHorseBox" placeholder="Ej: Box 08" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-hipo-accent text-hipo-bg font-black p-2 rounded-xl text-xs mt-1">
+                        ✔ Crear y Vincular de Inmediato
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL FICHA CABALLO -->
+        <div id="horseDetailModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-md rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 id="modalDetailName" class="text-base font-black text-white">Nombre</h3>
+                            <span id="modalDetailStatusBadge" class="text-[9px] font-bold px-2 py-0.5 rounded">Activo</span>
+                        </div>
+                        <span id="modalDetailBox" class="text-xs text-hipo-accent font-bold">Box</span>
+                    </div>
+                    <button id="btnCloseHorseDetailModal" class="text-hipo-textMuted text-xl font-bold">&times;</button>
+                </div>
+
+                <div class="bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-1.5 text-xs">
+                    <span class="text-hipo-accent font-bold uppercase text-[10px] block border-b border-hipo-border/50 pb-1">📋 Ficha General & Morfometría</span>
+                    <div class="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                        <div><span class="text-hipo-textMuted block text-[10px]">Propietario:</span><strong id="modalDetailOwner" class="text-white text-xs">-</strong></div>
+                        <div><span class="text-hipo-textMuted block text-[10px]">Tipo:</span><strong id="modalDetailType" class="text-white text-xs uppercase">-</strong></div>
+                        <div><span class="text-hipo-textMuted block text-[10px]">📏 Alzada / Peso:</span><strong id="modalDetailMorpho" class="text-white text-xs">-</strong></div>
+                        <div><span class="text-hipo-textMuted block text-[10px]">Herrero Asignado:</span><strong id="modalDetailHerrero" class="text-white text-xs">-</strong></div>
+                    </div>
+                </div>
+
+                <div class="bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-2 text-xs">
+                    <div class="flex justify-between items-center border-b border-hipo-border/50 pb-1">
+                        <span class="text-hipo-warning font-bold uppercase text-[10px]">🩺 Clínica Sanitaria & Control</span>
+                        <button id="btnResetShoeTicket" class="text-[10px] bg-hipo-success/20 text-hipo-success border border-hipo-success/40 px-2 py-0.5 rounded font-bold">
+                            ✔ Herraje Realizado Hoy
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-[11px]">
+                        <div><span class="text-hipo-textMuted block text-[10px]">🛠️ Últ. Herraje:</span><strong id="modalDetailUltHerraje" class="text-white text-xs">-</strong></div>
+                        <div><span class="text-hipo-textMuted block text-[10px]">Próx. Herraje (+35d):</span><strong id="modalDetailShoeing" class="text-white text-xs">-</strong></div>
+                        <div><span class="text-hipo-textMuted block text-[10px]">💉 Próx. Vacuna:</span><strong id="modalDetailVacuna" class="text-hipo-success text-xs">-</strong></div>
+                        <div><span class="text-hipo-textMuted block text-[10px]">🪱 Próx. Desparasitación:</span><strong id="modalDetailDesparasitado" class="text-hipo-success text-xs">-</strong></div>
+                        <div class="col-span-2"><span class="text-hipo-textMuted block text-[10px]">🦷 Control Dientes (Semestral):</span><strong id="modalDetailDientes" class="text-hipo-success text-xs">-</strong></div>
+                    </div>
+                </div>
+
+                <div class="bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-2 text-xs">
+                    <span class="text-hipo-purple font-bold uppercase text-[10px] block border-b border-hipo-border/50 pb-1">🌾 Ración Diaria & Observaciones</span>
+                    <div class="space-y-1 text-hipo-textMuted text-[11px]">
+                        <div class="flex justify-between"><span>Mañana:</span><strong id="modalDetailFeedM" class="text-white">-</strong></div>
+                        <div class="flex justify-between"><span>Tarde:</span><strong id="modalDetailFeedT" class="text-white">-</strong></div>
+                        <div class="flex justify-between"><span>Noche:</span><strong id="modalDetailFeedN" class="text-white">-</strong></div>
+                    </div>
+                    <div class="border-t border-hipo-border/40 pt-1.5 mt-1">
+                        <span class="text-hipo-textMuted text-[10px] block font-bold">Notas de Manejo:</span>
+                        <p id="modalDetailNotes" class="text-slate-300 text-[11px] leading-relaxed mt-0.5">-</p>
+                    </div>
+                </div>
+
+                <div class="bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-2 text-xs">
+                    <span class="text-hipo-accent font-bold uppercase text-[10px] block border-b border-hipo-border/50 pb-1">📜 Bitácora e Historial de Eventos</span>
+                    <div id="modalDetailBitacoraList" class="space-y-1.5 max-h-32 overflow-y-auto pr-1"></div>
+                </div>
+
+                <div class="flex gap-2 pt-1">
+                    <button id="btnEditCurrentHorse" class="w-1/2 bg-hipo-warning/25 border border-hipo-warning/40 text-hipo-warning font-bold p-2.5 rounded-xl text-xs">
+                        ✏️ Editar Ficha Completa
+                    </button>
+                    <button id="btnCloseHorseDetailModalBottom" class="w-1/2 bg-hipo-cardLight text-white font-bold p-2.5 rounded-xl text-xs">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL FORMULARIO CABALLO -->
+        <div id="horseFormModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-md rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 id="horseModalTitle" class="text-sm font-bold text-white">🐴 Agregar / Editar Ficha</h3>
+                    <button id="btnCloseHorseFormModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+
+                <form id="horseForm" class="space-y-2.5 text-xs">
+                    <input type="hidden" id="horseFormId">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Nombre del Caballo</label>
+                            <input type="text" id="hFormNombre" required placeholder="Ej: Zafiro" class="w-full p-2 rounded-xl text-xs border font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Box</label>
+                            <input type="text" id="hFormBox" placeholder="Ej: Box 05" required class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1">Estado</label>
+                            <select id="hFormEstado" class="w-full p-2 rounded-xl text-xs font-bold text-white border">
+                                <option value="true">Activo</option>
+                                <option value="false">Inactivo</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1">Tipo</label>
+                            <select id="hFormTipo" class="w-full p-2 rounded-xl text-xs">
+                                <option value="particular">Particular</option>
+                                <option value="escuela">Escuela</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="block text-hipo-textMuted font-bold">Propietario</label>
+                            <button type="button" onclick="openInlineQuickPropietarioModal()" class="text-[9px] bg-hipo-accent/20 text-hipo-accent px-2 py-0.5 rounded font-bold">
+                                ➕ Crear Propietario Rápido
+                            </button>
+                        </div>
+                        <select id="hFormPropietarioSelect" class="w-full p-2 rounded-xl text-xs font-bold text-white border"></select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1">Alzada (m)</label>
+                            <input type="text" id="hFormAlzada" placeholder="Ej: 1.68m" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1">Peso Estimado (kg)</label>
+                            <input type="text" id="hFormPeso" placeholder="Ej: 520kg" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                    </div>
+
+                    <div class="border-t border-hipo-border/60 pt-2">
+                        <span class="font-bold text-hipo-warning text-[11px] block mb-1">🩺 Clínica, Salud & Herraje</span>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Fecha Últ. Herraje</label>
+                                <input type="date" id="hFormUltHerraje" class="w-full p-2 rounded-xl text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Herrero Asignado</label>
+                                <select id="hFormHerrero" class="w-full p-2 rounded-xl text-xs font-bold text-white border"></select>
+                            </div>
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Próx. Vacuna</label>
+                                <input type="date" id="hFormProxVacuna" class="w-full p-2 rounded-xl text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Próx. Desparasitación</label>
+                                <input type="date" id="hFormProxDesparasitado" class="w-full p-2 rounded-xl text-xs">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Próx. Control Dientes (Semestral)</label>
+                                <input type="date" id="hFormProxDientes" class="w-full p-2 rounded-xl text-xs">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-hipo-border/60 pt-2">
+                        <span class="font-bold text-hipo-purple text-[11px] block mb-1">🌾 Alimentación Diaria</span>
+                        <div class="space-y-1.5">
+                            <input type="text" id="hFormRacM" placeholder="Mañana (Ej: 1.5kg Pellet + 1/2 Fardo)" class="w-full p-2 rounded-xl text-xs">
+                            <input type="text" id="hFormRacT" placeholder="Tarde (Ej: 1.5kg Pellet)" class="w-full p-2 rounded-xl text-xs">
+                            <input type="text" id="hFormRacN" placeholder="Noche (Ej: 1/2 Fardo Pasto Miel)" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1">Notas de Manejo / Observaciones</label>
+                        <textarea id="hFormNotas" rows="2" placeholder="Observaciones especiales..." class="w-full p-2 rounded-xl text-xs"></textarea>
+                    </div>
+
+                    <button type="submit" id="btnSaveHorse" class="w-full bg-hipo-accent text-hipo-bg font-black p-2.5 rounded-xl text-xs hover:bg-hipo-accentHover transition-colors mt-2">
+                        💾 Guardar Ficha Completa en la Nube
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL CLASE -->
+        <div id="classModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-4">
+            <div class="bg-hipo-card w-full max-w-sm rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 class="text-xs font-bold text-white">📅 Agendar Clase / Monta Libre</h3>
+                    <button id="btnCloseClassModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+
+                <form id="classForm" class="space-y-2.5 text-xs">
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold text-hipo-accent">Fecha de la Clase</label>
+                        <input type="date" id="modalClassDate" required class="w-full p-2.5 rounded-xl text-xs font-bold border text-white bg-hipo-bg cursor-pointer">
+                    </div>
+
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Alumno / Jinete</label>
+                        <select id="modalStudentSelect" required class="w-full p-2.5 rounded-xl text-xs font-bold text-white border"></select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Hora</label>
+                            <select id="modalTime" class="w-full p-2 rounded-xl text-xs">
+                                <option value="09:00 hrs">09:00 hrs</option>
+                                <option value="10:00 hrs">10:00 hrs</option>
+                                <option value="11:00 hrs">11:00 hrs</option>
+                                <option value="12:00 hrs">12:00 hrs</option>
+                                <option value="15:00 hrs">15:00 hrs</option>
+                                <option value="16:00 hrs" selected>16:00 hrs</option>
+                                <option value="17:00 hrs">17:00 hrs</option>
+                                <option value="18:00 hrs">18:00 hrs</option>
+                                <option value="19:00 hrs">19:00 hrs</option>
+                                <option value="20:00 hrs">20:00 hrs</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Modalidad / Profesor</label>
+                            <select id="modalProfe" class="w-full p-2 rounded-xl text-xs font-bold text-white border"></select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Caballo</label>
+                        <select id="modalHorseSelect" class="w-full p-2 rounded-xl text-xs font-bold text-hipo-accent"></select>
+                    </div>
+
+                    <button type="submit" id="btnSubmitClass" class="w-full bg-hipo-accent text-hipo-bg font-black p-2.5 rounded-xl text-xs hover:bg-hipo-accentHover transition-colors mt-1">
+                        ✓ Guardar Reserva
+                    </button>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://dvklysnihmioubsswxdw.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_4H8CuDflAdSxPSGdx3X4MQ_YQ-SbVPg";
+        const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const ROLES_PASS = { admin: "admin123", profe: "profe123", ordenanza: "pesebrera123" };
+        let currentRole = 'admin';
+        let currentPersonaUser = null;
+        let currentFilter = 'all';
+        let currentPeopleFilter = 'all';
+        let horses = [];
+        let classesList = [];
+        let campaigns = [];
+        let campaignDetailsMap = {};
+        let personas = [];
+        let campeonatos = [];
+        let campeonatoInscripciones = [];
+        let camionViajes = [];
+        let camionViajeCaballos = [];
+        let activeHorseId = null;
+        let activeCampaignFullscreenId = null;
+        let isUrgentFilterActive = false;
+
+        function getTodayStr() { return new Date().toISOString().split('T')[0]; }
+        let selectedAgendaDate = getTodayStr();
+
+        const dom = {
+            loginScreen: document.getElementById('loginScreen'),
+            loginForm: document.getElementById('loginForm'),
+            loginRole: document.getElementById('loginRole'),
+            loginPass: document.getElementById('loginPass'),
+            loginError: document.getElementById('loginError'),
+            appContainer: document.getElementById('appContainer'),
+            btnLogout: document.getElementById('btnLogout'),
+            btnChangePassword: document.getElementById('btnChangePassword'),
+            lblCurrentRoleText: document.getElementById('lblCurrentRoleText'),
+            roleBannerText: document.getElementById('roleBannerText'),
+            navDash: document.getElementById('navDash'),
+            navCamion: document.getElementById('navCamion'),
+            navOrdenanza: document.getElementById('navOrdenanza'),
+            navHorses: document.getElementById('navHorses'),
+            navCampaigns: document.getElementById('navCampaigns'),
+            navPeople: document.getElementById('navPeople'),
+            navAgenda: document.getElementById('navAgenda'),
+            navFinance: document.getElementById('navFinance'),
+            secDash: document.getElementById('secDash'),
+            secCamion: document.getElementById('secCamion'),
+            secOrdenanza: document.getElementById('secOrdenanza'),
+            secHorses: document.getElementById('secHorses'),
+            secCampaigns: document.getElementById('secCampaigns'),
+            secPeople: document.getElementById('secPeople'),
+            secAgenda: document.getElementById('secAgenda'),
+            secFinance: document.getElementById('secFinance'),
+            campeonatosList: document.getElementById('campeonatosList'),
+            btnOpenNewCampeonatoModal: document.getElementById('btnOpenNewCampeonatoModal'),
+            campeonatoModal: document.getElementById('campeonatoModal'),
+            btnCloseCampeonatoModal: document.getElementById('btnCloseCampeonatoModal'),
+            campeonatoForm: document.getElementById('campeonatoForm'),
+            campNombre: document.getElementById('campNombre'),
+            campInicio: document.getElementById('campInicio'),
+            campFin: document.getElementById('campFin'),
+            campUbicacion: document.getElementById('campUbicacion'),
+            inscripcionModal: document.getElementById('inscripcionModal'),
+            btnCloseInscripcionModal: document.getElementById('btnCloseInscripcionModal'),
+            inscripcionForm: document.getElementById('inscripcionForm'),
+            inscripcionCampId: document.getElementById('inscripcionCampId'),
+            insJineteSelect: document.getElementById('insJineteSelect'),
+            insCaballoSelect: document.getElementById('insCaballoSelect'),
+            insFecha: document.getElementById('insFecha'),
+            lblInsFechaRango: document.getElementById('lblInsFechaRango'),
+            insPrueba: document.getElementById('insPrueba'),
+            insHora: document.getElementById('insHora'),
+            viajeModal: document.getElementById('viajeModal'),
+            btnCloseViajeModal: document.getElementById('btnCloseViajeModal'),
+            viajeForm: document.getElementById('viajeForm'),
+            btnSaveViaje: document.getElementById('btnSaveViaje'),
+            viajeCampId: document.getElementById('viajeCampId'),
+            vFecha: document.getElementById('vFecha'),
+            lblVFechaRango: document.getElementById('lblVFechaRango'),
+            vHora: document.getElementById('vHora'),
+            vChofer: document.getElementById('vChofer'),
+            vCaballosChecklist: document.getElementById('vCaballosChecklist'),
+            vObs: document.getElementById('vObs'),
+            dashHorseCount: document.getElementById('dashHorseCount'),
+            dashClassCount: document.getElementById('dashClassCount'),
+            dashUrgentShoe: document.getElementById('dashUrgentShoe'),
+            dashActiveCampaignsCount: document.getElementById('dashActiveCampaignsCount'),
+            dashTodayClasses: document.getElementById('dashTodayClasses'),
+            dashHealthAlerts: document.getElementById('dashHealthAlerts'),
+            cardUrgentShoe: document.getElementById('cardUrgentShoe'),
+            cardCampaigns: document.getElementById('cardCampaigns'),
+            blockHealthAlertsContainer: document.getElementById('blockHealthAlertsContainer'),
+            ordenanzaRidingList: document.getElementById('ordenanzaRidingList'),
+            ordenanzaFeedList: document.getElementById('ordenanzaFeedList'),
+            horsesGrid: document.getElementById('horsesGrid'),
+            campaignsActiveList: document.getElementById('campaignsActiveList'),
+            campaignsHistoryList: document.getElementById('campaignsHistoryList'),
+            btnToggleHistoryCampaigns: document.getElementById('btnToggleHistoryCampaigns'),
+            lblHistoryCount: document.getElementById('lblHistoryCount'),
+            btnOpenNewCampaignModal: document.getElementById('btnOpenNewCampaignModal'),
+            newCampaignModal: document.getElementById('newCampaignModal'),
+            btnCloseNewCampaignModal: document.getElementById('btnCloseNewCampaignModal'),
+            newCampaignForm: document.getElementById('newCampaignForm'),
+            campTitle: document.getElementById('campTitle'),
+            campType: document.getElementById('campType'),
+            campProduct: document.getElementById('campProduct'),
+            campCost: document.getElementById('campCost'),
+            campNextDate: document.getElementById('campNextDate'),
+            campaignFullscreenModal: document.getElementById('campaignFullscreenModal'),
+            btnCloseFullCampModal: document.getElementById('btnCloseFullCampModal'),
+            fullCampTitle: document.getElementById('fullCampTitle'),
+            fullCampTypeBadge: document.getElementById('fullCampTypeBadge'),
+            fullCampSubtitle: document.getElementById('fullCampSubtitle'),
+            fullCampProgressLabel: document.getElementById('fullCampProgressLabel'),
+            fullCampProgressBar: document.getElementById('fullCampProgressBar'),
+            searchFullCampHorse: document.getElementById('searchFullCampHorse'),
+            fullCampHorsesList: document.getElementById('fullCampHorsesList'),
+            agendaList: document.getElementById('agendaList'),
+            financeContent: document.getElementById('financeContent'),
+            financeTitle: document.getElementById('financeTitle'),
+            filterAllHorses: document.getElementById('filterAllHorses'),
+            filterParticularHorses: document.getElementById('filterParticularHorses'),
+            filterSchoolHorses: document.getElementById('filterSchoolHorses'),
+            filterInactiveHorses: document.getElementById('filterInactiveHorses'),
+            searchHorse: document.getElementById('searchHorse'),
+            btnOpenNewHorseModal: document.getElementById('btnOpenNewHorseModal'),
+            horseFormModal: document.getElementById('horseFormModal'),
+            horseForm: document.getElementById('horseForm'),
+            horseModalTitle: document.getElementById('horseModalTitle'),
+            btnCloseHorseFormModal: document.getElementById('btnCloseHorseFormModal'),
+            btnSaveHorse: document.getElementById('btnSaveHorse'),
+            btnEditCurrentHorse: document.getElementById('btnEditCurrentHorse'),
+            hFormId: document.getElementById('horseFormId'),
+            hFormNombre: document.getElementById('hFormNombre'),
+            hFormBox: document.getElementById('hFormBox'),
+            hFormEstado: document.getElementById('hFormEstado'),
+            hFormTipo: document.getElementById('hFormTipo'),
+            hFormPropietarioSelect: document.getElementById('hFormPropietarioSelect'),
+            hFormAlzada: document.getElementById('hFormAlzada'),
+            hFormPeso: document.getElementById('hFormPeso'),
+            hFormUltHerraje: document.getElementById('hFormUltHerraje'),
+            hFormHerrero: document.getElementById('hFormHerrero'),
+            hFormProxVacuna: document.getElementById('hFormProxVacuna'),
+            hFormProxDesparasitado: document.getElementById('hFormProxDesparasitado'),
+            hFormProxDientes: document.getElementById('hFormProxDientes'),
+            hFormRacM: document.getElementById('hFormRacM'),
+            hFormRacT: document.getElementById('hFormRacT'),
+            hFormRacN: document.getElementById('hFormRacN'),
+            hFormNotas: document.getElementById('hFormNotas'),
+            btnOpenClassModal: document.getElementById('btnOpenClassModal'),
+            btnCloseClassModal: document.getElementById('btnCloseClassModal'),
+            classModal: document.getElementById('classModal'),
+            classForm: document.getElementById('classForm'),
+            modalClassDate: document.getElementById('modalClassDate'),
+            modalStudentSelect: document.getElementById('modalStudentSelect'),
+            modalTime: document.getElementById('modalTime'),
+            modalProfe: document.getElementById('modalProfe'),
+            modalHorseSelect: document.getElementById('modalHorseSelect'),
+            btnSubmitClass: document.getElementById('btnSubmitClass'),
+            classDatePicker: document.getElementById('classDatePicker'),
+            btnDayToday: document.getElementById('btnDayToday'),
+            btnDayTomorrow: document.getElementById('btnDayTomorrow'),
+            btnDayAll: document.getElementById('btnDayAll'),
+            horseDetailModal: document.getElementById('horseDetailModal'),
+            btnCloseHorseDetailModal: document.getElementById('btnCloseHorseDetailModal'),
+            btnCloseHorseDetailModalBottom: document.getElementById('btnCloseHorseDetailModalBottom'),
+            modalDetailName: document.getElementById('modalDetailName'),
+            modalDetailStatusBadge: document.getElementById('modalDetailStatusBadge'),
+            modalDetailBox: document.getElementById('modalDetailBox'),
+            modalDetailOwner: document.getElementById('modalDetailOwner'),
+            modalDetailType: document.getElementById('modalDetailType'),
+            modalDetailMorpho: document.getElementById('modalDetailMorpho'),
+            modalDetailHerrero: document.getElementById('modalDetailHerrero'),
+            modalDetailUltHerraje: document.getElementById('modalDetailUltHerraje'),
+            modalDetailShoeing: document.getElementById('modalDetailShoeing'),
+            modalDetailVacuna: document.getElementById('modalDetailVacuna'),
+            modalDetailDesparasitado: document.getElementById('modalDetailDesparasitado'),
+            modalDetailDientes: document.getElementById('modalDetailDientes'),
+            modalDetailFeedM: document.getElementById('modalDetailFeedM'),
+            modalDetailFeedT: document.getElementById('modalDetailFeedT'),
+            modalDetailFeedN: document.getElementById('modalDetailFeedN'),
+            modalDetailNotes: document.getElementById('modalDetailNotes'),
+            modalDetailBitacoraList: document.getElementById('modalDetailBitacoraList'),
+            btnResetShoeTicket: document.getElementById('btnResetShoeTicket'),
+            filterPeopleAll: document.getElementById('filterPeopleAll'),
+            filterPeopleProp: document.getElementById('filterPeopleProp'),
+            filterPeopleAlum: document.getElementById('filterPeopleAlum'),
+            filterPeopleApod: document.getElementById('filterPeopleApod'),
+            filterPeopleStaff: document.getElementById('filterPeopleStaff'),
+            searchPersona: document.getElementById('searchPersona'),
+            personasGrid: document.getElementById('personasGrid'),
+            personaModal: document.getElementById('personaModal'),
+            personaModalTitle: document.getElementById('personaModalTitle'),
+            btnClosePersonaModal: document.getElementById('btnClosePersonaModal'),
+            personaForm: document.getElementById('personaForm'),
+            personaId: document.getElementById('personaId'),
+            chkEsPropietario: document.getElementById('chkEsPropietario'),
+            chkEsAlumno: document.getElementById('chkEsAlumno'),
+            chkEsApoderado: document.getElementById('chkEsApoderado'),
+            chkEsStaff: document.getElementById('chkEsStaff'),
+            blockStaff: document.getElementById('blockStaff'),
+            pCargoStaff: document.getElementById('pCargoStaff'),
+            pNombre: document.getElementById('pNombre'),
+            pRut: document.getElementById('pRut'),
+            pTelefono: document.getElementById('pTelefono'),
+            pEmail: document.getElementById('pEmail'),
+            pPassword: document.getElementById('pPassword'),
+            pVet: document.getElementById('pVet'),
+            pMontoMax: document.getElementById('pMontoMax'),
+            blockPropietario: document.getElementById('blockPropietario'),
+            pCaballosChecklist: document.getElementById('pCaballosChecklist'),
+            blockAlumno: document.getElementById('blockAlumno'),
+            pNivel: document.getElementById('pNivel'),
+            pProfesor: document.getElementById('pProfesor'),
+            chkEsMenor: document.getElementById('chkEsMenor'),
+            blockApoderadoSelect: document.getElementById('blockApoderadoSelect'),
+            pApoderadoId: document.getElementById('pApoderadoId'),
+            pFichaMedica: document.getElementById('pFichaMedica'),
+            quickInlineModal: document.getElementById('quickInlineModal'),
+            btnCloseQuickInlineModal: document.getElementById('btnCloseQuickInlineModal'),
+            quickInlineForm: document.getElementById('quickInlineForm'),
+            quickInlineTitle: document.getElementById('quickInlineTitle'),
+            quickType: document.getElementById('quickType'),
+            quickPersonFields: document.getElementById('quickPersonFields'),
+            qNombre: document.getElementById('qNombre'),
+            qTelefono: document.getElementById('qTelefono'),
+            qRut: document.getElementById('qRut'),
+            quickHorseFields: document.getElementById('quickHorseFields'),
+            qHorseName: document.getElementById('qHorseName'),
+            qHorseBox: document.getElementById('qHorseBox'),
+            changePasswordModal: document.getElementById('changePasswordModal'),
+            btnCloseChangePasswordModal: document.getElementById('btnCloseChangePasswordModal'),
+            changePasswordForm: document.getElementById('changePasswordForm'),
+            newPasswordInput: document.getElementById('newPasswordInput'),
+            confirmPasswordInput: document.getElementById('confirmPasswordInput')
+        };
+
+        function calculateDaysRemaining(lastShoeDate) {
+            if (!lastShoeDate) return 30;
+            const last = new Date(lastShoeDate);
+            const next = new Date(last);
+            next.setDate(next.getDate() + 35);
+            const today = new Date();
+            return Math.ceil((next - today) / (1000 * 60 * 60 * 24));
+        }
+
+        async function populateLoginRoleDropdown() {
+            if (personas.length === 0) {
+                const { data: pAll } = await db.from('personas').select('*').order('nombre', { ascending: true });
+                if (pAll) personas = pAll;
+            }
+            
+            dom.loginRole.innerHTML = `
+                <option value="admin">👑 Administrador</option>
+                <option value="profe">🎓 Profesor</option>
+                <option value="ordenanza">🧹 Ordenanza (Pesebrera)</option>
+            `;
+            if (personas && personas.length > 0) {
+                const group = document.createElement('optgroup');
+                group.label = "👤 Socios, Alumnos & Apoderados";
+                personas.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = `persona_${p.id}`;
+                    opt.textContent = `🐴 ${p.nombre}`;
+                    group.appendChild(opt);
+                });
+                dom.loginRole.appendChild(group);
+            }
+        }
+
+        async function ensureAllActiveHorsesInActiveCampaigns() {
+            const activeCamps = campaigns.filter(c => c.estado === 'activa');
+            const activeHorses = horses.filter(h => h.active);
+
+            if (activeCamps.length === 0 || activeHorses.length === 0) return;
+
+            let missingEntries = [];
+            for (const c of activeCamps) {
+                const details = campaignDetailsMap[c.id] || [];
+                const registeredHorseIds = new Set(details.map(d => d.caballo_id));
+
+                for (const h of activeHorses) {
+                    if (!registeredHorseIds.has(h.id)) {
+                        missingEntries.push({ campana_id: c.id, caballo_id: h.id, aplicado: false });
+                    }
+                }
+            }
+
+            if (missingEntries.length > 0) {
+                const { error } = await db.from('campana_detalles').insert(missingEntries);
+                if (!error) {
+                    const { data: detData } = await db.from('campana_detalles').select('*, caballos(*)');
+                    if (detData) {
+                        campaignDetailsMap = {};
+                        detData.forEach(d => {
+                            if (!campaignDetailsMap[d.campana_id]) campaignDetailsMap[d.campana_id] = [];
+                            campaignDetailsMap[d.campana_id].push(d);
+                        });
+                    }
+                }
+            }
+        }
+
+        async function fetchCloudData() {
+            try {
+                const { data: pData } = await db.from('personas').select('*').order('nombre', { ascending: true });
+                if (pData) personas = pData;
+
+                const { data: cData } = await db.from('caballos').select('*').order('id', { ascending: true });
+                if (cData) {
+                    horses = cData.map(h => ({
+                        id: h.id,
+                        name: h.nombre,
+                        type: h.tipo,
+                        owner: h.propietario,
+                        ownerPersonaId: h.propietario_persona_id,
+                        box: h.box,
+                        active: h.activo !== false,
+                        ultHerraje: h.ult_herraje,
+                        shoeingDays: calculateDaysRemaining(h.ult_herraje),
+                        alzada: h.alzada || 'N/R',
+                        peso: h.peso_estimado || 'N/R',
+                        herreroNombre: h.herrero_nombre || 'Club',
+                        feedM: h.rac_manana,
+                        feedT: h.rac_tarde,
+                        feedN: h.rac_noche,
+                        notes: h.notas,
+                        balance: Number(h.saldo || 0),
+                        proxVacuna: h.prox_vacuna,
+                        proxDesparasitado: h.prox_desparasitado,
+                        proxDientes: h.prox_dientes
+                    }));
+                }
+
+                const { data: clData } = await db.from('clases').select('*').order('fecha', { ascending: true }).order('hora', { ascending: true });
+                if (clData) {
+                    classesList = clData.map(c => ({
+                        id: c.id,
+                        fecha: c.fecha || getTodayStr(),
+                        student: c.alumno,
+                        horse: c.caballo,
+                        box: c.box || 'Box',
+                        type: c.tipo,
+                        profe: c.profesor,
+                        time: c.hora,
+                        anulada: c.anulada === true,
+                        vistoProfe: c.visto_profe === true,
+                        vistoOrdenanza: c.visto_ordenanza === true
+                    }));
+                }
+
+                const { data: cmpData } = await db.from('campanas_sanitarias').select('*').order('id', { ascending: false });
+                if (cmpData) campaigns = cmpData;
+
+                const { data: detData } = await db.from('campana_detalles').select('*, caballos(*)');
+                if (detData) {
+                    campaignDetailsMap = {};
+                    detData.forEach(d => {
+                        if (!campaignDetailsMap[d.campana_id]) campaignDetailsMap[d.campana_id] = [];
+                        campaignDetailsMap[d.campana_id].push(d);
+                    });
+                }
+
+                // DATOS CAMIÓN Y CAMPEONATOS
+                const { data: champData } = await db.from('campeonatos').select('*').order('fecha_inicio', { ascending: false });
+                if (champData) campeonatos = champData;
+
+                const { data: insData } = await db.from('campeonato_inscripciones').select('*');
+                if (insData) campeonatoInscripciones = insData;
+
+                const { data: vData } = await db.from('camion_viajes').select('*').order('fecha_viaje', { ascending: false });
+                if (vData) camionViajes = vData;
+
+                const { data: vcData } = await db.from('camion_viaje_caballos').select('*');
+                if (vcData) camionViajeCaballos = vcData;
+
+                await ensureAllActiveHorsesInActiveCampaigns();
+
+            } catch (err) { console.error("Error conectando a Supabase", err); }
+            renderAll();
+
+            if (activeCampaignFullscreenId) {
+                renderCampaignFullscreenContent(activeCampaignFullscreenId);
+            }
+        }
+
+        async function init() {
+            await fetchCloudData();
+            await populateLoginRoleDropdown();
+            setupEventListeners();
+            dom.classDatePicker.value = selectedAgendaDate;
+            window.addEventListener('focus', fetchCloudData);
+        }
+
+        function renderCamion() {
+            dom.campeonatosList.innerHTML = '';
+
+            if (campeonatos.length === 0) {
+                dom.campeonatosList.innerHTML = `<div class="bg-hipo-card p-4 rounded-2xl border border-hipo-border text-center text-hipo-textMuted text-xs">No hay campeonatos creados. Usa "+ Crear Campeonato" para agregar uno.</div>`;
+                return;
+            }
+
+            campeonatos.forEach(camp => {
+                const div = document.createElement('div');
+                div.className = "bg-hipo-card p-4 rounded-2xl border border-hipo-border space-y-3 shadow-lg";
+
+                // INSCRIPCIONES
+                const inscriptos = campeonatoInscripciones.filter(i => String(i.campeonato_id) === String(camp.id));
+                let htmlInscripciones = '';
+                if (inscriptos.length === 0) {
+                    htmlInscripciones = `<div class="text-[11px] text-hipo-textMuted italic py-1">Sin jinetes ni caballos inscritos aún.</div>`;
+                } else {
+                    inscriptos.forEach(ins => {
+                        htmlInscripciones += `
+                            <div class="bg-hipo-bg p-2 rounded-xl border border-hipo-border flex justify-between items-center text-xs">
+                                <div>
+                                    <span class="font-bold text-white">${ins.jinete_nombre}</span> <span class="text-hipo-textMuted">en</span> <span class="font-bold text-hipo-accent">${ins.caballo_nombre}</span>
+                                    <div class="text-[10px] text-hipo-textMuted">Prueba: ${ins.prueba_recorrido || 'S/N'} • ${ins.fecha_prueba || ''} (${ins.hora_participacion || ''})</div>
+                                </div>
+                                <button onclick="deleteInscripcion(${ins.id})" class="text-hipo-danger font-bold text-[10px] bg-hipo-danger/10 px-2 py-0.5 rounded border border-hipo-danger/20">✕</button>
+                            </div>
+                        `;
+                    });
+                }
+
+                // VIAJES REGISTRADOS CON RESUMEN ROBUSTO CRUZANDO CON EL ARREGLO GLOBAL HORSES
+                const viajesCamp = camionViajes.filter(v => String(v.campeonato_id) === String(camp.id));
+                let htmlViajes = '';
+                if (viajesCamp.length === 0) {
+                    htmlViajes = `<div class="text-[11px] text-hipo-textMuted italic py-1">Sin salidas de camión programadas para este campeonato.</div>`;
+                } else {
+                    viajesCamp.forEach(v => {
+                        const vCaballos = camionViajeCaballos
+                            .filter(vc => String(vc.viaje_id) === String(v.id))
+                            .map(vc => {
+                                if (vc.caballo_id) {
+                                    const match = horses.find(h => String(h.id) === String(vc.caballo_id));
+                                    if (match) return `${match.name} (${match.box || 'Box'})`;
+                                }
+                                return null;
+                            })
+                            .filter(Boolean);
+
+                        htmlViajes += `
+                            <div class="bg-hipo-bg p-2.5 rounded-xl border border-hipo-border space-y-1 text-xs">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold text-hipo-accent">🚚 Salida: ${v.fecha_viaje} (${v.hora_salida})</span>
+                                    <button onclick="deleteViaje(${v.id})" class="text-hipo-danger font-bold text-[10px] bg-hipo-danger/10 px-2 py-0.5 rounded border border-hipo-danger/20">✕</button>
+                                </div>
+                                <div class="text-[10px] text-hipo-textMuted">Chofer: <strong class="text-white">${v.chofer || 'N/R'}</strong></div>
+                                <div class="text-[10px] text-hipo-accent font-bold">Caballos a Bordo (${vCaballos.length}): ${vCaballos.length > 0 ? vCaballos.join(', ') : 'Ninguno seleccionado'}</div>
+                                ${v.observaciones ? `<div class="text-[10px] text-slate-300 italic">${v.observaciones}</div>` : ''}
+                            </div>
+                        `;
+                    });
+                }
+
+                div.innerHTML = `
+                    <div class="flex justify-between items-start border-b border-hipo-border pb-2">
+                        <div>
+                            <h3 class="font-black text-sm text-white flex items-center gap-1.5">
+                                <span>🏆</span> ${camp.nombre}
+                            </h3>
+                            <span class="text-[10px] text-hipo-textMuted">📍 ${camp.ubicacion || 'Ubicación por definir'} • Del ${camp.fecha_inicio} al ${camp.fecha_fin}</span>
+                        </div>
+                        <button onclick="deleteCampeonato(${camp.id})" class="text-hipo-danger font-bold text-xs bg-hipo-danger/15 px-2 py-1 rounded-lg border border-hipo-danger/30">🗑️ Eliminar</button>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="openInscripcionModal(${camp.id})" class="flex-1 bg-hipo-accent/20 hover:bg-hipo-accent/30 text-hipo-accent border border-hipo-accent/40 font-bold py-1.5 px-2 rounded-xl text-xs flex items-center justify-center gap-1">
+                            <span>📝</span> Inscribir Prueba
+                        </button>
+                        <button onclick="openViajeModal(${camp.id})" class="flex-1 bg-hipo-accent/20 hover:bg-hipo-accent/30 text-hipo-accent border border-hipo-accent/40 font-bold py-1.5 px-2 rounded-xl text-xs flex items-center justify-center gap-1">
+                            <span>🚚 Planificar Camión</span>
+                        </button>
+                    </div>
+
+                    <div class="space-y-1.5 border-t border-hipo-border/60 pt-2">
+                        <span class="text-[10px] font-bold uppercase text-hipo-accent block">📋 Jinetes y Caballos Inscritos:</span>
+                        <div class="space-y-1">${htmlInscripciones}</div>
+                    </div>
+
+                    <div class="space-y-1.5 border-t border-hipo-border/60 pt-2">
+                        <span class="text-[10px] font-bold uppercase text-hipo-accent block">🚚 Programación Logística de Camión:</span>
+                        <div class="space-y-1">${htmlViajes}</div>
+                    </div>
+                `;
+                dom.campeonatosList.appendChild(div);
+            });
+        }
+
+        window.openInscripcionModal = function(campId) {
+            dom.inscripcionCampId.value = campId;
+            const camp = campeonatos.find(c => String(c.id) === String(campId));
+
+            if (camp) {
+                dom.insFecha.min = camp.fecha_inicio;
+                dom.insFecha.max = camp.fecha_fin;
+                dom.lblInsFechaRango.textContent = `(Permitido: ${camp.fecha_inicio} a ${camp.fecha_fin})`;
+
+                const today = getTodayStr();
+                if (today >= camp.fecha_inicio && today <= camp.fecha_fin) {
+                    dom.insFecha.value = today;
+                } else {
+                    dom.insFecha.value = camp.fecha_inicio;
+                }
+            } else {
+                dom.insFecha.removeAttribute('min');
+                dom.insFecha.removeAttribute('max');
+                dom.lblInsFechaRango.textContent = '';
+                dom.insFecha.value = getTodayStr();
+            }
+
+            dom.insJineteSelect.innerHTML = '';
+
+            if (currentRole === 'client' && currentPersonaUser) {
+                let allowedJinetes = [];
+                const esJineteActivo = currentPersonaUser.es_alumno || currentPersonaUser.es_propietario;
+                if (esJineteActivo) {
+                    allowedJinetes.push({ nombre: currentPersonaUser.nombre, id: currentPersonaUser.id });
+                }
+
+                if (currentPersonaUser.es_apoderado || currentPersonaUser.es_propietario) {
+                    const pupilos = personas.filter(p => p.apoderado_id == currentPersonaUser.id);
+                    pupilos.forEach(p => {
+                        if (!allowedJinetes.some(j => j.id === p.id)) {
+                            allowedJinetes.push({ nombre: p.nombre, id: p.id });
+                        }
+                    });
+                }
+
+                allowedJinetes.forEach(j => {
+                    const opt = document.createElement('option');
+                    opt.value = j.nombre;
+                    opt.textContent = j.nombre + (j.id === currentPersonaUser.id ? ' (Tú)' : ' (Pupilo)');
+                    dom.insJineteSelect.appendChild(opt);
+                });
+
+                if (allowedJinetes.length > 0) {
+                    dom.insJineteSelect.value = allowedJinetes[0].nombre;
+                }
+            } else {
+                personas.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.nombre;
+                    opt.textContent = p.nombre;
+                    dom.insJineteSelect.appendChild(opt);
+                });
+            }
+
+            dom.insJineteSelect.onchange = () => updateHorseOptionsForInscripcionModal();
+            updateHorseOptionsForInscripcionModal();
+
+            dom.inscripcionModal.classList.remove('hidden');
+        };
+
+        function updateHorseOptionsForInscripcionModal() {
+            const selectedJineteName = dom.insJineteSelect.value;
+            const jineteObj = personas.find(p => p.nombre === selectedJineteName);
+
+            dom.insCaballoSelect.innerHTML = '';
+            const allActiveHorses = horses.filter(h => h.active);
+
+            const targetPersonId = jineteObj ? jineteObj.id : (currentPersonaUser ? currentPersonaUser.id : null);
+
+            let ownHorses = [];
+            let otherParticularHorses = [];
+            let schoolHorses = [];
+
+            allActiveHorses.forEach(h => {
+                if (targetPersonId && h.ownerPersonaId == targetPersonId) {
+                    ownHorses.push(h);
+                } else if (h.type === 'escuela') {
+                    schoolHorses.push(h);
+                } else {
+                    otherParticularHorses.push(h);
+                }
+            });
+
+            const orderedHorses = [...ownHorses, ...otherParticularHorses, ...schoolHorses];
+
+            orderedHorses.forEach(h => {
+                const opt = document.createElement('option');
+                opt.value = h.id;
+
+                let ownerText = 'Escuela';
+                if (h.type !== 'escuela') {
+                    const isOwn = targetPersonId && h.ownerPersonaId == targetPersonId;
+                    ownerText = isOwn ? 'Particular - Propio' : `Particular - Dueño: ${h.owner || 'Otro'}`;
+                }
+
+                opt.textContent = `${h.name} (${h.box || 'Box'}) - ${ownerText}`;
+                dom.insCaballoSelect.appendChild(opt);
+            });
+        }
+
+        window.openViajeModal = function(campId) {
+            dom.viajeCampId.value = campId;
+            const camp = campeonatos.find(c => String(c.id) === String(campId));
+
+            if (camp) {
+                dom.vFecha.min = camp.fecha_inicio;
+                dom.vFecha.max = camp.fecha_fin;
+                dom.lblVFechaRango.textContent = `(Permitido: ${camp.fecha_inicio} a ${camp.fecha_fin})`;
+
+                const today = getTodayStr();
+                if (today >= camp.fecha_inicio && today <= camp.fecha_fin) {
+                    dom.vFecha.value = today;
+                } else {
+                    dom.vFecha.value = camp.fecha_inicio;
+                }
+            } else {
+                dom.vFecha.removeAttribute('min');
+                dom.vFecha.removeAttribute('max');
+                dom.lblVFechaRango.textContent = '';
+                dom.vFecha.value = getTodayStr();
+            }
+
+            updateViajeCaballosChecklist();
+            dom.viajeModal.classList.remove('hidden');
+        };
+
+        function updateViajeCaballosChecklist() {
+            const campId = dom.viajeCampId.value;
+            const selectedDate = dom.vFecha.value;
+            dom.vCaballosChecklist.innerHTML = '';
+
+            if (!selectedDate || !campId) return;
+
+            const dayInscriptions = campeonatoInscripciones.filter(i => 
+                String(i.campeonato_id) === String(campId) && i.fecha_prueba === selectedDate
+            );
+
+            if (dayInscriptions.length === 0) {
+                dom.vCaballosChecklist.innerHTML = `<div class="text-hipo-warning text-[11px] font-bold p-1">⚠️ No hay caballos inscritos en pruebas para la fecha seleccionada (${selectedDate}). Primero inscribe participaciones.</div>`;
+                return;
+            }
+
+            const tripsOnDate = camionViajes.filter(v => v.fecha_viaje === selectedDate);
+            const tripIdsOnDate = new Set(tripsOnDate.map(v => String(v.id)));
+
+            const assignedHorseIds = new Set();
+            camionViajeCaballos.forEach(vc => {
+                if (tripIdsOnDate.has(String(vc.viaje_id)) && vc.caballo_id) {
+                    assignedHorseIds.add(String(vc.caballo_id));
+                }
+            });
+
+            const uniqueInscribedMap = new Map();
+            dayInscriptions.forEach(ins => {
+                if (ins.caballo_id && !uniqueInscribedMap.has(String(ins.caballo_id))) {
+                    uniqueInscribedMap.set(String(ins.caballo_id), ins);
+                }
+            });
+
+            let availableCount = 0;
+            uniqueInscribedMap.forEach((insObj, hIdStr) => {
+                if (!assignedHorseIds.has(hIdStr)) {
+                    availableCount++;
+                    const hObj = horses.find(h => String(h.id) === hIdStr);
+                    const horseName = hObj ? hObj.name : insObj.caballo_nombre;
+                    const boxStr = hObj ? (hObj.box || 'Box') : 'Box';
+
+                    const label = document.createElement('label');
+                    label.className = "flex items-center gap-2 cursor-pointer text-xs text-white py-1.5 hover:bg-hipo-cardLight px-1.5 rounded-lg transition-colors border-b border-hipo-border/40";
+                    label.innerHTML = `
+                        <input type="checkbox" value="${hIdStr}" class="vHorseCheck accent-hipo-accent">
+                        <span><strong>${horseName}</strong> (${boxStr}) - <span class="text-hipo-accent">Inscrito por: ${insObj.jinete_nombre} (${insObj.prueba_recorrido || 'Prueba'})</span></span>
+                    `;
+                    dom.vCaballosChecklist.appendChild(label);
+                }
+            });
+
+            if (availableCount === 0) {
+                dom.vCaballosChecklist.innerHTML = `<div class="text-hipo-warning text-[11px] font-bold p-1">⚠️ Todos los caballos inscritos para el ${selectedDate} ya se encuentran asignados a un viaje de camión.</div>`;
+            }
+        }
+
+        window.deleteCampeonato = async function(id) {
+            if (confirm("¿Eliminar este campeonato?")) {
+                campeonatos = campeonatos.filter(c => String(c.id) !== String(id));
+                try { await db.from('campeonatos').delete().eq('id', id); } catch(e){}
+                fetchCloudData();
+            }
+        };
+
+        window.deleteInscripcion = async function(id) {
+            if (confirm("¿Eliminar esta inscripción?")) {
+                campeonatoInscripciones = campeonatoInscripciones.filter(i => String(i.id) !== String(id));
+                try { await db.from('campeonato_inscripciones').delete().eq('id', id); } catch(e){}
+                fetchCloudData();
+            }
+        };
+
+        // CORRECCIÓN CLAVE: AL ELIMINAR UN VIAJE, BORRAMOS SUS RELACIONES EN CAMION_VIAJE_CABALLOS PARA LIBERAR LOS CABALLOS
+        window.deleteViaje = async function(id) {
+            if (confirm("¿Eliminar esta salida de camión? Los caballos asignados quedarán disponibles nuevamente.")) {
+                camionViajes = camionViajes.filter(v => String(v.id) !== String(id));
+                camionViajeCaballos = camionViajeCaballos.filter(vc => String(vc.viaje_id) !== String(id));
+                try {
+                    await db.from('camion_viaje_caballos').delete().eq('viaje_id', id);
+                    await db.from('camion_viajes').delete().eq('id', id);
+                } catch(e){}
+                fetchCloudData();
+            }
+        };
+
+        function setupEventListeners() {
+            dom.vFecha.addEventListener('change', updateViajeCaballosChecklist);
+
+            dom.loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const selectedVal = dom.loginRole.value;
+                const enteredPass = dom.loginPass.value.trim();
+
+                if (selectedVal.startsWith('persona_')) {
+                    const personId = Number(selectedVal.replace('persona_', ''));
+                    
+                    if (personas.length === 0) {
+                        const { data: pData } = await db.from('personas').select('*');
+                        if (pData) personas = pData;
+                    }
+                    
+                    const pData = personas.find(p => p.id === personId);
+
+                    if (pData && (pData.password || 'socio123') === enteredPass) {
+                        currentRole = 'client';
+                        currentPersonaUser = pData;
+                        dom.loginError.classList.add('hidden');
+                        dom.loginScreen.classList.add('hidden');
+                        dom.appContainer.classList.remove('hidden');
+                        switchRole('client');
+                        fetchCloudData();
+                    } else {
+                        dom.loginError.classList.remove('hidden');
+                    }
+                } else {
+                    if (ROLES_PASS[selectedVal] === enteredPass) {
+                        currentRole = selectedVal;
+                        currentPersonaUser = null;
+                        dom.loginError.classList.add('hidden');
+                        dom.loginScreen.classList.add('hidden');
+                        dom.appContainer.classList.remove('hidden');
+                        switchRole(selectedVal);
+                        fetchCloudData();
+                    } else {
+                        dom.loginError.classList.remove('hidden');
+                    }
+                }
+            });
+
+            dom.btnLogout.addEventListener('click', () => {
+                dom.appContainer.classList.add('hidden');
+                dom.loginScreen.classList.remove('hidden');
+                dom.loginPass.value = '';
+                currentPersonaUser = null;
+                populateLoginRoleDropdown();
+            });
+
+            dom.btnChangePassword.addEventListener('click', () => {
+                dom.changePasswordForm.reset();
+                dom.changePasswordModal.classList.remove('hidden');
+            });
+            dom.btnCloseChangePasswordModal.addEventListener('click', () => dom.changePasswordModal.classList.add('hidden'));
+
+            dom.changePasswordForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const pass1 = dom.newPasswordInput.value.trim();
+                const pass2 = dom.confirmPasswordInput.value.trim();
+
+                if (pass1 !== pass2) {
+                    alert("⚠️ Las contraseñas no coinciden.");
+                    return;
+                }
+
+                if (currentRole === 'client' && currentPersonaUser) {
+                    const { error } = await db.from('personas').update({ password: pass1 }).eq('id', currentPersonaUser.id);
+                    if (error) { alert("Error actualizando clave: " + error.message); return; }
+                    alert("✔ Tu clave personal ha sido actualizada con éxito.");
+                } else {
+                    ROLES_PASS[currentRole] = pass1;
+                    alert(`✔ Clave del perfil ${currentRole.toUpperCase()} actualizada temporalmente para esta sesión.`);
+                }
+                dom.changePasswordModal.classList.add('hidden');
+            });
+
+            dom.btnCloseHorseDetailModal.addEventListener('click', () => dom.horseDetailModal.classList.add('hidden'));
+            dom.btnCloseHorseDetailModalBottom.addEventListener('click', () => dom.horseDetailModal.classList.add('hidden'));
+            dom.btnOpenNewHorseModal.addEventListener('click', () => openHorseFormModal(null));
+            dom.btnCloseHorseFormModal.addEventListener('click', () => dom.horseFormModal.classList.add('hidden'));
+
+            dom.btnEditCurrentHorse.addEventListener('click', () => {
+                dom.horseDetailModal.classList.add('hidden');
+                openHorseFormModal(activeHorseId);
+            });
+
+            dom.btnResetShoeTicket.addEventListener('click', async () => {
+                if (!activeHorseId) return;
+                const today = getTodayStr();
+                const h = horses.find(item => item.id === activeHorseId);
+
+                await db.from('caballos').update({ ult_herraje: today, dias_herraje: 35 }).eq('id', activeHorseId);
+                await db.from('bitacora_caballos').insert([{
+                    caballo_id: activeHorseId,
+                    tipo_evento: 'Herraje',
+                    detalle: 'Herraje realizado con éxito (+35 días reiniciados)',
+                    responsable: currentRole.toUpperCase()
+                }]);
+
+                alert(`✔ Herraje registrado hoy para ${h ? h.name : 'el caballo'}. Contador reiniciado a 35 días.`);
+                fetchCloudData();
+                openHorseDetail(activeHorseId);
+            });
+
+            dom.btnOpenNewCampaignModal.addEventListener('click', () => dom.newCampaignModal.classList.remove('hidden'));
+            dom.btnCloseNewCampaignModal.addEventListener('click', () => dom.newCampaignModal.classList.add('hidden'));
+
+            dom.btnCloseFullCampModal.addEventListener('click', closeCampaignFullscreenModal);
+            dom.searchFullCampHorse.addEventListener('input', () => {
+                if (activeCampaignFullscreenId) renderCampaignFullscreenContent(activeCampaignFullscreenId);
+            });
+
+            dom.btnToggleHistoryCampaigns.addEventListener('click', () => {
+                dom.campaignsHistoryList.classList.toggle('hidden');
+            });
+
+            dom.newCampaignForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const title = dom.campTitle.value.trim();
+                const typeVal = dom.campType.value;
+                const prod = dom.campProduct.value.trim();
+                const cost = Number(dom.campCost.value || 0);
+                const nextDate = dom.campNextDate.value;
+
+                const { data: cRes, error } = await db.from('campanas_sanitarias').insert([{
+                    titulo: title, tipo: typeVal, producto: prod, costo_por_caballo: cost, fecha_refuerzo: nextDate, estado: 'activa'
+                }]).select();
+
+                if (error) { alert("Error al crear campaña: " + error.message); return; }
+
+                if (cRes && cRes[0]) {
+                    const cId = cRes[0].id;
+                    const activeList = horses.filter(h => h.active);
+                    const detailsPayload = activeList.map(h => ({ campana_id: cId, caballo_id: h.id, aplicado: false }));
+                    await db.from('campana_detalles').insert(detailsPayload);
+                }
+
+                dom.newCampaignModal.classList.add('hidden');
+                dom.newCampaignForm.reset();
+                fetchCloudData();
+            });
+
+            dom.btnOpenNewCampeonatoModal.addEventListener('click', () => dom.campeonatoModal.classList.remove('hidden'));
+            dom.btnCloseCampeonatoModal.addEventListener('click', () => dom.campeonatoModal.classList.add('hidden'));
+            dom.btnCloseInscripcionModal.addEventListener('click', () => dom.inscripcionModal.classList.add('hidden'));
+            dom.btnCloseViajeModal.addEventListener('click', () => dom.viajeModal.classList.add('hidden'));
+
+            dom.campeonatoForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const payload = {
+                    nombre: dom.campNombre.value.trim(),
+                    fecha_inicio: dom.campInicio.value,
+                    fecha_fin: dom.campFin.value,
+                    ubicacion: dom.campUbicacion.value.trim() || 'Club',
+                    estado: 'activo'
+                };
+                const { error } = await db.from('campeonatos').insert([payload]);
+                if (error) { alert("Error al crear campeonato: " + error.message); return; }
+                dom.campeonatoModal.classList.add('hidden');
+                dom.campeonatoForm.reset();
+                fetchCloudData();
+            });
+
+            dom.inscripcionForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const campId = dom.inscripcionCampId.value;
+                const fechaPrueba = dom.insFecha.value;
+
+                const camp = campeonatos.find(c => String(c.id) === String(campId));
+                if (camp && (fechaPrueba < camp.fecha_inicio || fechaPrueba > camp.fecha_fin)) {
+                    alert(`⚠️ La fecha elegida (${fechaPrueba}) no está dentro del rango del campeonato (${camp.fecha_inicio} al ${camp.fecha_fin}).`);
+                    return;
+                }
+
+                const jineteName = dom.insJineteSelect.value;
+                const caballoIdVal = Number(dom.insCaballoSelect.value);
+                const caballoObj = horses.find(h => h.id === caballoIdVal);
+                const personaObj = personas.find(p => p.nombre === jineteName);
+
+                const payload = {
+                    campeonato_id: Number(campId),
+                    persona_id: personaObj ? personaObj.id : null,
+                    jinete_nombre: jineteName,
+                    caballo_id: caballoObj ? caballoObj.id : null,
+                    caballo_nombre: caballoObj ? caballoObj.name : '',
+                    fecha_prueba: fechaPrueba,
+                    prueba_recorrido: dom.insPrueba.value,
+                    hora_participacion: dom.insHora.value
+                };
+
+                const { error } = await db.from('campeonato_inscripciones').insert([payload]);
+                if (error) { alert("Error al guardar inscripción: " + error.message); return; }
+
+                dom.inscripcionModal.classList.add('hidden');
+                dom.inscripcionForm.reset();
+                fetchCloudData();
+            });
+
+            dom.viajeForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                dom.btnSaveViaje.disabled = true;
+
+                const campId = dom.viajeCampId.value;
+                const fechaViaje = dom.vFecha.value;
+
+                const selectedChecks = document.querySelectorAll('.vHorseCheck:checked');
+                if (selectedChecks.length === 0) {
+                    alert("⚠️ Por favor selecciona al menos un caballo para el viaje.");
+                    dom.btnSaveViaje.disabled = false;
+                    return;
+                }
+
+                const payload = {
+                    campeonato_id: campId ? Number(campId) : null,
+                    fecha_viaje: fechaViaje,
+                    hora_salida: dom.vHora.value,
+                    chofer: dom.vChofer.value.trim() || 'Por asignar',
+                    observaciones: dom.vObs.value.trim()
+                };
+
+                const { data: vData, error: vErr } = await db.from('camion_viajes').insert([payload]).select();
+                
+                if (vErr || !vData || !vData[0]) { 
+                    alert("Error al guardar viaje: " + (vErr ? vErr.message : "Sin respuesta del servidor")); 
+                    dom.btnSaveViaje.disabled = false;
+                    return; 
+                }
+
+                const realViajeId = vData[0].id;
+
+                const horsesPayload = Array.from(selectedChecks).map(c => {
+                    return {
+                        viaje_id: Number(realViajeId),
+                        caballo_id: Number(c.value)
+                    };
+                });
+
+                const { error: vcErr } = await db.from('camion_viaje_caballos').insert(horsesPayload);
+                dom.btnSaveViaje.disabled = false;
+
+                if (vcErr) {
+                    alert("Atención: El viaje se creó pero ocurrió un error asignando los caballos: " + vcErr.message);
+                }
+
+                dom.viajeModal.classList.add('hidden');
+                dom.viajeForm.reset();
+                await fetchCloudData();
+            });
+
+            dom.btnClosePersonaModal.addEventListener('click', () => dom.personaModal.classList.add('hidden'));
+            dom.btnCloseQuickInlineModal.addEventListener('click', () => dom.quickInlineModal.classList.add('hidden'));
+
+            dom.chkEsPropietario.addEventListener('change', togglePersonaFormBlocks);
+            dom.chkEsAlumno.addEventListener('change', togglePersonaFormBlocks);
+            dom.chkEsApoderado.addEventListener('change', togglePersonaFormBlocks);
+            dom.chkEsStaff.addEventListener('change', togglePersonaFormBlocks);
+            
+            dom.chkEsMenor.addEventListener('change', () => {
+                dom.blockApoderadoSelect.classList.toggle('hidden', !dom.chkEsMenor.checked);
+            });
+
+            dom.personaForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const personId = dom.personaId.value;
+                const personName = dom.pNombre.value.trim();
+
+                const payload = {
+                    nombre: personName,
+                    rut: dom.pRut.value.trim(),
+                    telefono: dom.pTelefono.value.trim(),
+                    email: dom.pEmail.value.trim(),
+                    password: dom.pPassword.value.trim() || 'socio123',
+                    es_propietario: dom.chkEsPropietario.checked,
+                    es_alumno: dom.chkEsAlumno.checked,
+                    es_apoderado: dom.chkEsApoderado.checked,
+                    es_staff: dom.chkEsStaff.checked,
+                    cargo_staff: dom.chkEsStaff.checked ? dom.pCargoStaff.value : null,
+                    vet_cabecera: dom.chkEsPropietario.checked ? dom.pVet.value.trim() : null,
+                    monto_max_emergencia: dom.chkEsPropietario.checked ? Number(dom.pMontoMax.value || 0) : 0,
+                    nivel_hipico: dom.chkEsAlumno.checked ? dom.pNivel.value : null,
+                    profesor_asignado: dom.chkEsAlumno.checked ? dom.pProfesor.value.trim() : null,
+                    es_menor: dom.chkEsAlumno.checked ? dom.chkEsMenor.checked : false,
+                    apoderado_id: (dom.chkEsAlumno.checked && dom.chkEsMenor.checked) ? dom.pApoderadoId.value : null,
+                    ficha_medica: dom.chkEsAlumno.checked ? dom.pFichaMedica.value.trim() : null
+                };
+
+                let savedPersonId = personId;
+                if (personId) {
+                    const res = await db.from('personas').update(payload).eq('id', personId);
+                    if (res.error) { alert("Error: " + res.error.message); return; }
+                } else {
+                    const res = await db.from('personas').insert([payload]).select();
+                    if (res.error) { alert("Error: " + res.error.message); return; }
+                    if (res.data && res.data[0]) savedPersonId = res.data[0].id;
+                }
+
+                if (dom.chkEsPropietario.checked && savedPersonId) {
+                    const selectedHorseBoxes = dom.pCaballosChecklist.querySelectorAll('input[type="checkbox"]:checked');
+                    const selectedHorseIds = Array.from(selectedHorseBoxes).map(cb => Number(cb.value));
+
+                    for (const h of horses) {
+                        if (selectedHorseIds.includes(h.id)) {
+                            await db.from('caballos').update({ propietario_persona_id: Number(savedPersonId), propietario: personName }).eq('id', h.id);
+                        } else if (h.ownerPersonaId == savedPersonId) {
+                            await db.from('caballos').update({ propietario_persona_id: null, propietario: 'Club' }).eq('id', h.id);
+                        }
+                    }
+                }
+
+                dom.personaModal.classList.add('hidden');
+                fetchCloudData();
+            });
+
+            dom.quickInlineForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const type = dom.quickType.value;
+
+                if (type === 'horse') {
+                    const currentPersonId = dom.personaId.value ? Number(dom.personaId.value) : null;
+                    const personName = dom.pNombre.value.trim() || 'Club';
+
+                    const payloadHorse = {
+                        nombre: dom.qHorseName.value.trim(),
+                        box: dom.qHorseBox.value.trim(),
+                        activo: true,
+                        tipo: 'particular',
+                        propietario_persona_id: currentPersonId,
+                        propietario: personName
+                    };
+
+                    const { error } = await db.from('caballos').insert([payloadHorse]);
+                    if (error) { alert("Error al crear caballo: " + error.message); return; }
+
+                    dom.quickInlineModal.classList.add('hidden');
+                    dom.quickInlineForm.reset();
+                    await fetchCloudData();
+                    if (currentPersonId) populateCaballosChecklistInPersonaModal(currentPersonId);
+
+                } else {
+                    const payload = {
+                        nombre: dom.qNombre.value.trim(),
+                        telefono: dom.qTelefono.value.trim(),
+                        rut: dom.qRut.value.trim(),
+                        password: 'socio123',
+                        es_propietario: type === 'propietario',
+                        es_apoderado: type === 'apoderado'
+                    };
+
+                    const { data: pRes, error } = await db.from('personas').insert([payload]).select();
+                    if (error) { alert("Error al crear: " + error.message); return; }
+
+                    dom.quickInlineModal.classList.add('hidden');
+                    dom.quickInlineForm.reset();
+                    await fetchCloudData();
+
+                    if (pRes && pRes[0]) {
+                        const newP = pRes[0];
+                        if (type === 'propietario') populatePropietariosDropdown(newP.id);
+                        else if (type === 'apoderado') populateApoderadosDropdown(newP.id);
+                    }
+                }
+            });
+
+            dom.horseForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                dom.btnSaveHorse.disabled = true;
+
+                const selectedPropId = dom.hFormPropietarioSelect.value ? Number(dom.hFormPropietarioSelect.value) : null;
+                const selectedPropObj = personas.find(p => p.id === selectedPropId);
+                const horseId = dom.hFormId.value;
+                const isNewHorse = !horseId;
+
+                const payload = {
+                    nombre: dom.hFormNombre.value.trim(),
+                    box: dom.hFormBox.value.trim(),
+                    activo: dom.hFormEstado.value === 'true',
+                    tipo: dom.hFormTipo.value,
+                    propietario_persona_id: selectedPropId,
+                    propietario: selectedPropObj ? selectedPropObj.nombre : 'Club',
+                    alzada: dom.hFormAlzada.value.trim(),
+                    peso_estimado: dom.hFormPeso.value.trim(),
+                    ult_herraje: dom.hFormUltHerraje.value || null,
+                    herrero_nombre: dom.hFormHerrero.value.trim() || 'Club',
+                    prox_vacuna: dom.hFormProxVacuna.value || null,
+                    prox_desparasitado: dom.hFormProxDesparasitado.value || null,
+                    prox_dientes: dom.hFormProxDientes.value || null,
+                    rac_manana: dom.hFormRacM.value.trim(),
+                    rac_tarde: dom.hFormRacT.value.trim(),
+                    rac_noche: dom.hFormRacN.value.trim(),
+                    notas: dom.hFormNotas.value.trim()
+                };
+
+                let res = isNewHorse 
+                    ? await db.from('caballos').insert([payload]).select()
+                    : await db.from('caballos').update(payload).eq('id', horseId).select();
+
+                dom.btnSaveHorse.disabled = false;
+                if (res.error) {
+                    alert("Error: " + res.error.message);
+                } else {
+                    dom.horseFormModal.classList.add('hidden'); 
+                    fetchCloudData(); 
+                }
+            });
+
+            dom.filterPeopleAll.addEventListener('click', () => setPeopleFilter('all'));
+            dom.filterPeopleProp.addEventListener('click', () => setPeopleFilter('prop'));
+            dom.filterPeopleAlum.addEventListener('click', () => setPeopleFilter('alum'));
+            dom.filterPeopleApod.addEventListener('click', () => setPeopleFilter('apod'));
+            dom.filterPeopleStaff.addEventListener('click', () => setPeopleFilter('staff'));
+            dom.searchPersona.addEventListener('input', renderPeople);
+
+            dom.navDash.addEventListener('click', () => showSection('dash'));
+            dom.navCamion.addEventListener('click', () => showSection('camion'));
+            dom.navOrdenanza.addEventListener('click', () => showSection('ordenanza'));
+            dom.navHorses.addEventListener('click', () => { isUrgentFilterActive = false; showSection('horses'); });
+            dom.navCampaigns.addEventListener('click', () => showSection('campaigns'));
+            dom.navPeople.addEventListener('click', () => showSection('people'));
+            dom.navAgenda.addEventListener('click', () => showSection('agenda'));
+            dom.navFinance.addEventListener('click', () => showSection('finance'));
+
+            dom.filterAllHorses.addEventListener('click', () => { isUrgentFilterActive = false; setHorseFilter('all'); });
+            dom.filterParticularHorses.addEventListener('click', () => { isUrgentFilterActive = false; setHorseFilter('particular'); });
+            dom.filterSchoolHorses.addEventListener('click', () => { isUrgentFilterActive = false; setHorseFilter('escuela'); });
+            dom.filterInactiveHorses.addEventListener('click', () => { isUrgentFilterActive = false; setHorseFilter('inactive'); });
+            dom.searchHorse.addEventListener('input', () => { isUrgentFilterActive = false; renderHorses(); });
+
+            dom.btnOpenClassModal.addEventListener('click', openClassModal);
+            dom.btnCloseClassModal.addEventListener('click', () => dom.classModal.classList.add('hidden'));
+
+            dom.classDatePicker.addEventListener('change', (e) => {
+                selectedAgendaDate = e.target.value;
+                highlightAgendaDayButtons('picker');
+                renderAgenda();
+            });
+
+            dom.btnDayToday.addEventListener('click', () => {
+                selectedAgendaDate = getTodayStr();
+                dom.classDatePicker.value = selectedAgendaDate;
+                highlightAgendaDayButtons('today');
+                renderAgenda();
+            });
+
+            dom.btnDayTomorrow.addEventListener('click', () => {
+                const tom = new Date();
+                tom.setDate(tom.getDate() + 1);
+                selectedAgendaDate = tom.toISOString().split('T')[0];
+                dom.classDatePicker.value = selectedAgendaDate;
+                highlightAgendaDayButtons('tomorrow');
+                renderAgenda();
+            });
+
+            dom.btnDayAll.addEventListener('click', () => {
+                selectedAgendaDate = 'ALL';
+                highlightAgendaDayButtons('all');
+                renderAgenda();
+            });
+
+            dom.classForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const selectedStudentName = dom.modalStudentSelect.value;
+                const selectedHorseName = dom.modalHorseSelect.value;
+                
+                const studentObj = personas.find(p => p.nombre === selectedStudentName);
+                const horseObj = horses.find(h => h.name === selectedHorseName);
+
+                if (studentObj && horseObj) {
+                    const isOwnHorse = horseObj.ownerPersonaId == studentObj.id;
+                    const isSchoolHorse = horseObj.type === 'escuela';
+
+                    if (!isOwnHorse && !isSchoolHorse) {
+                        const confirmExtra = confirm(`⚠️ Atención: El caballo "${horseObj.name}" pertenece a "${horseObj.owner || 'otro propietario'}". ¿Estás seguro de que deseas asignarlo a este jinete?`);
+                        if (!confirmExtra) {
+                            return;
+                        }
+                    }
+                }
+
+                dom.btnSubmitClass.disabled = true;
+                const selectedProfeVal = dom.modalProfe.value;
+                const isFreeRider = selectedProfeVal === 'Monta Libre';
+
+                const newClass = {
+                    fecha: dom.modalClassDate.value,
+                    alumno: selectedStudentName,
+                    caballo: selectedHorseName,
+                    box: horseObj ? horseObj.box : "Box",
+                    tipo: isFreeRider ? 'Monta Libre' : 'Clase Escuela',
+                    profesor: isFreeRider ? 'Monta Libre' : `Prof. ${selectedProfeVal}`,
+                    hora: dom.modalTime.value,
+                    anulada: false,
+                    visto_profe: isFreeRider ? true : false,
+                    visto_ordenanza: false
+                };
+
+                const { error } = await db.from('clases').insert([newClass]);
+                dom.btnSubmitClass.disabled = false;
+
+                if (error) alert("Error al agendar: " + error.message);
+                else { dom.classModal.classList.add('hidden'); fetchCloudData(); }
+            });
+        }
+
+        async function applyCampaignDose(detailId, campId, horseObj, campObj) {
+            const nowIso = new Date().toISOString();
+            await db.from('campana_detalles').update({ aplicado: true, fecha_aplicacion: nowIso }).eq('id', detailId);
+
+            if (campObj.costo_por_caballo > 0) {
+                const currentBalance = Number(horseObj.balance || 0);
+                const newBalance = currentBalance - Number(campObj.costo_por_caballo);
+                await db.from('caballos').update({ saldo: newBalance }).eq('id', horseObj.id);
+            }
+
+            let payloadDate = campObj.tipo === 'vacuna' ? { prox_vacuna: campObj.fecha_refuerzo } : { prox_desparasitado: campObj.fecha_refuerzo };
+            await db.from('caballos').update(payloadDate).eq('id', horseObj.id);
+
+            await db.from('bitacora_caballos').insert([{
+                caballo_id: horseObj.id,
+                tipo_evento: campObj.tipo === 'vacuna' ? 'Vacuna' : 'Desparasitante',
+                detalle: `Campaña: ${campObj.titulo} (${campObj.producto})`,
+                responsable: currentRole.toUpperCase()
+            }]);
+
+            const { data: updatedDetails } = await db.from('campana_detalles').select('id, aplicado').eq('campana_id', campId);
+            if (updatedDetails && updatedDetails.length > 0) {
+                const total = updatedDetails.length;
+                const applied = updatedDetails.filter(d => d.aplicado).length;
+
+                if (applied === total) {
+                    await db.from('campanas_sanitarias').update({ estado: 'completada' }).eq('id', campId);
+                }
+            }
+
+            fetchCloudData();
+        }
+
+        function openCampaignFullscreenModal(campId) {
+            activeCampaignFullscreenId = campId;
+            dom.searchFullCampHorse.value = '';
+            renderCampaignFullscreenContent(campId);
+            dom.campaignFullscreenModal.classList.remove('hidden');
+        }
+
+        function closeCampaignFullscreenModal() {
+            activeCampaignFullscreenId = null;
+            dom.campaignFullscreenModal.classList.add('hidden');
+        }
+
+        function renderCampaignFullscreenContent(campId) {
+            const c = campaigns.find(item => item.id == campId);
+            if (!c) return;
+
+            dom.fullCampTitle.textContent = c.titulo;
+            dom.fullCampTypeBadge.textContent = c.tipo;
+            dom.fullCampTypeBadge.className = `text-[9px] font-bold px-2 py-0.5 rounded ${c.tipo === 'vacuna' ? 'bg-hipo-accent/20 text-hipo-accent border border-hipo-accent/30' : 'bg-hipo-purple/20 text-hipo-purple border border-hipo-purple/30'} uppercase`;
+            dom.fullCampSubtitle.textContent = `Fármaco: ${c.producto} • Costo: $${Number(c.costo_por_caballo).toLocaleString('es-CL')} • Refuerzo: ${c.fecha_refuerzo || 'Sin fecha'}`;
+
+            let details = campaignDetailsMap[c.id] || [];
+            const total = details.length;
+            const applied = details.filter(d => d.aplicado).length;
+            const pct = total > 0 ? Math.round((applied / total) * 100) : 0;
+
+            dom.fullCampProgressLabel.textContent = `${applied} / ${total} Aplicadas (${pct}%)`;
+            dom.fullCampProgressBar.style.width = `${pct}%`;
+
+            const query = dom.searchFullCampHorse.value.toLowerCase().trim();
+            if (query) {
+                details = details.filter(d => {
+                    const h = d.caballos;
+                    if (!h) return false;
+                    return h.nombre.toLowerCase().includes(query) || 
+                           (h.box && h.box.toLowerCase().includes(query)) || 
+                           (h.propietario && h.propietario.toLowerCase().includes(query));
+                });
+            }
+
+            dom.fullCampHorsesList.innerHTML = '';
+            if (details.length === 0) {
+                dom.fullCampHorsesList.innerHTML = `<div class="text-hipo-textMuted text-center py-8 text-xs">No se encontraron caballos en esta campaña.</div>`;
+                return;
+            }
+
+            details.forEach(d => {
+                const h = d.caballos;
+                if (!h) return;
+
+                const appliedDateStr = d.fecha_aplicacion 
+                    ? new Date(d.fecha_aplicacion).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })
+                    : 'Aplicado';
+
+                const card = document.createElement('div');
+                card.className = "bg-hipo-bg p-3 rounded-xl border border-hipo-border flex justify-between items-center text-xs shadow-sm hover:border-hipo-accent transition-all";
+                card.innerHTML = `
+                    <div class="space-y-0.5">
+                        <strong class="text-white text-sm font-bold block">${h.box}: ${h.nombre}</strong>
+                        <span class="text-[11px] text-hipo-textMuted block">Dueño: <strong class="text-slate-200">${h.propietario || 'Escuela'}</strong></span>
+                    </div>
+                    <div>
+                        ${d.aplicado 
+                            ? `<span class="bg-hipo-success/20 text-hipo-success font-black border border-hipo-success/40 text-xs px-3 py-1.5 rounded-xl flex items-center gap-1 shadow">
+                                ✔ ${appliedDateStr}
+                              </span>`
+                            : `<button onclick="applyCampaignDose(${d.id}, ${c.id}, ${JSON.stringify(h).replace(/"/g, '&quot;')}, ${JSON.stringify(c).replace(/"/g, '&quot;')})" class="bg-hipo-accent hover:bg-hipo-accentHover text-hipo-bg font-extrabold text-xs px-4 py-2 rounded-xl shadow-md transition-all active:scale-95">
+                                💉 Aplicar Dosis
+                               </button>`
+                        }
+                    </div>
+                `;
+                dom.fullCampHorsesList.appendChild(card);
+            });
+        }
+
+        function renderCampaigns() {
+            dom.campaignsActiveList.innerHTML = '';
+            dom.campaignsHistoryList.innerHTML = '';
+
+            const activeCamps = campaigns.filter(c => c.estado === 'activa');
+            const historyCamps = campaigns.filter(c => c.estado === 'completada');
+
+            dom.dashActiveCampaignsCount.textContent = activeCamps.length;
+            dom.lblHistoryCount.textContent = historyCamps.length;
+
+            if (activeCamps.length === 0) {
+                dom.campaignsActiveList.innerHTML = `<div class="bg-hipo-card p-6 rounded-2xl border border-hipo-border text-center text-hipo-textMuted text-xs">No hay campañas activas en este momento.</div>`;
+            }
+
+            activeCamps.forEach(c => {
+                const details = campaignDetailsMap[c.id] || [];
+                const total = details.length;
+                const applied = details.filter(d => d.aplicado).length;
+                const pct = total > 0 ? Math.round((applied / total) * 100) : 0;
+
+                const card = document.createElement('div');
+                card.className = "bg-hipo-card p-4 rounded-2xl border border-hipo-border space-y-3 shadow-lg cursor-pointer hover:border-hipo-accent transition-all";
+                card.onclick = () => openCampaignFullscreenModal(c.id);
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start border-b border-hipo-border pb-2">
+                        <div>
+                            <h3 class="font-black text-sm text-white flex items-center gap-1.5">
+                                <span>💉</span> ${c.titulo}
+                            </h3>
+                            <span class="text-[10px] text-hipo-textMuted">Fármaco: <strong class="text-white">${c.producto}</strong> • Costo: $${Number(c.costo_por_caballo).toLocaleString('es-CL')}</span>
+                        </div>
+                        <span class="text-[9px] font-bold px-2 py-0.5 rounded ${c.tipo === 'vacuna' ? 'bg-hipo-accent/20 text-hipo-accent border border-hipo-accent/30' : 'bg-hipo-purple/20 text-hipo-purple border border-hipo-purple/30'} uppercase">${c.tipo}</span>
+                    </div>
+
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-[11px] font-bold">
+                            <span class="text-hipo-textMuted">Avance:</span>
+                            <span class="text-hipo-accent">${applied} / ${total} Aplicadas (${pct}%)</span>
+                        </div>
+                        <div class="w-full bg-hipo-bg h-2 rounded-full overflow-hidden border border-hipo-border">
+                            <div class="bg-hipo-accent h-full transition-all duration-300" style="width: ${pct}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-hipo-bg hover:bg-hipo-cardLight border border-hipo-border py-2 rounded-xl text-center text-xs font-bold text-hipo-accent flex items-center justify-center gap-1">
+                        <span>📲</span> <span>Abrir Seguimiento en Pantalla Completa</span>
+                    </div>
+                `;
+                dom.campaignsActiveList.appendChild(card);
+            });
+
+            if (historyCamps.length === 0) {
+                dom.campaignsHistoryList.innerHTML = `<div class="text-hipo-textMuted text-center py-4 text-xs">Sin campañas completadas en el historial.</div>`;
+            }
+
+            historyCamps.forEach(c => {
+                const card = document.createElement('div');
+                card.className = "bg-hipo-card/80 p-3.5 rounded-2xl border border-hipo-border space-y-2 text-xs cursor-pointer hover:border-hipo-accent transition-all";
+                card.onclick = () => openCampaignFullscreenModal(c.id);
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-center border-b border-hipo-border/50 pb-1.5">
+                        <div>
+                            <strong class="text-white font-bold text-xs block">${c.titulo}</strong>
+                            <span class="text-[10px] text-hipo-textMuted">Fármaco: ${c.producto} • Costo p/c: $${Number(c.costo_por_caballo).toLocaleString('es-CL')}</span>
+                        </div>
+                        <span class="bg-hipo-success/20 text-hipo-success border border-hipo-success/30 text-[9px] font-bold px-2 py-0.5 rounded">✔ COMPLETADA</span>
+                    </div>
+                    <div class="text-right text-[10px] text-hipo-accent font-bold">Ver Historial Completo &rarr;</div>
+                `;
+                dom.campaignsHistoryList.appendChild(card);
+            });
+        }
+
+        function togglePersonaFormBlocks() {
+            dom.blockPropietario.classList.toggle('hidden', !dom.chkEsPropietario.checked);
+            dom.blockAlumno.classList.toggle('hidden', !dom.chkEsAlumno.checked);
+            dom.blockStaff.classList.toggle('hidden', !dom.chkEsStaff.checked);
+        }
+
+        function populatePropietariosDropdown(selectedId = null) {
+            dom.hFormPropietarioSelect.innerHTML = '<option value="">-- Seleccionar Propietario --</option>';
+            const props = personas.filter(p => p.es_propietario);
+            props.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = `${p.nombre} (${p.rut || 'Sin RUT'})`;
+                if (selectedId && p.id == selectedId) opt.selected = true;
+                dom.hFormPropietarioSelect.appendChild(opt);
+            });
+        }
+
+        function populateApoderadosDropdown(selectedId = null) {
+            dom.pApoderadoId.innerHTML = '<option value="">-- Seleccionar Apoderado Responsable --</option>';
+            const apods = personas.filter(p => p.es_apoderado || p.es_propietario);
+            apods.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a.id;
+                opt.textContent = `${a.nombre} (${a.rut || 'Sin RUT'})`;
+                if (selectedId && a.id == selectedId) opt.selected = true;
+                dom.pApoderadoId.appendChild(opt);
+            });
+        }
+
+        function populateHerrerosDropdown(selectedName = null) {
+            dom.hFormHerrero.innerHTML = '<option value="Club">-- Club / Sin Asignar --</option>';
+            const herreros = personas.filter(p => p.es_staff && p.cargo_staff === 'Herrero');
+            herreros.forEach(h => {
+                const opt = document.createElement('option');
+                opt.value = h.nombre;
+                opt.textContent = `🔨 ${h.nombre}`;
+                if (selectedName && h.nombre === selectedName) opt.selected = true;
+                dom.hFormHerrero.appendChild(opt);
+            });
+            if (selectedName && !Array.from(dom.hFormHerrero.options).some(o => o.value === selectedName)) {
+                const opt = document.createElement('option');
+                opt.value = selectedName;
+                opt.textContent = `🔨 ${selectedName}`;
+                opt.selected = true;
+                dom.hFormHerrero.appendChild(opt);
+            }
+        }
+
+        function populateVeterinariosDropdown(selectedName = null) {
+            dom.pVet.innerHTML = '<option value="">-- Sin Veterinario Asignado --</option>';
+            const vets = personas.filter(p => p.es_staff && p.cargo_staff === 'Veterinario');
+            vets.forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v.nombre;
+                opt.textContent = `🩺 ${v.nombre}`;
+                if (selectedName && v.nombre === selectedName) opt.selected = true;
+                dom.pVet.appendChild(opt);
+            });
+            if (selectedName && !Array.from(dom.pVet.options).some(o => o.value === selectedName)) {
+                const opt = document.createElement('option');
+                opt.value = selectedName;
+                opt.textContent = `🩺 ${selectedName}`;
+                opt.selected = true;
+                dom.pVet.appendChild(opt);
+            }
+        }
+
+        function populateProfesoresDropdown(selectedName = null) {
+            dom.pProfesor.innerHTML = '<option value="Club">-- Club / General --</option>';
+            const profes = personas.filter(p => p.es_staff && p.cargo_staff === 'Profesor');
+            profes.forEach(pr => {
+                const opt = document.createElement('option');
+                opt.value = pr.nombre;
+                opt.textContent = `🎓 ${pr.nombre}`;
+                if (selectedName && pr.nombre === selectedName) opt.selected = true;
+                dom.pProfesor.appendChild(opt);
+            });
+            if (selectedName && !Array.from(dom.pProfesor.options).some(o => o.value === selectedName)) {
+                const opt = document.createElement('option');
+                opt.value = selectedName;
+                opt.textContent = `🎓 ${selectedName}`;
+                opt.selected = true;
+                dom.pProfesor.appendChild(opt);
+            }
+        }
+
+        function populateModalProfeOptions(selectedProfe = null) {
+            dom.modalProfe.innerHTML = '<option value="Monta Libre">🐴 Monta Libre (Sin Profesor)</option>';
+            const profes = personas.filter(p => p.es_staff && p.cargo_staff === 'Profesor');
+            profes.forEach(pr => {
+                const opt = document.createElement('option');
+                opt.value = pr.nombre;
+                opt.textContent = `🎓 Prof. ${pr.nombre}`;
+                if (selectedProfe && selectedProfe.includes(pr.nombre)) opt.selected = true;
+                dom.modalProfe.appendChild(opt);
+            });
+            if (profes.length === 0) {
+                ['Fernando R.', 'Sofia K.'].forEach(fallback => {
+                    const opt = document.createElement('option');
+                    opt.value = fallback;
+                    opt.textContent = `🎓 Prof. ${fallback}`;
+                    if (selectedProfe && selectedProfe.includes(fallback)) opt.selected = true;
+                    dom.modalProfe.appendChild(opt);
+                });
+            }
+        }
+
+        function populateJinetesDropdownInClassModal() {
+            dom.modalStudentSelect.innerHTML = '<option value="">-- Seleccionar Jinete / Alumno --</option>';
+            
+            if (currentRole === 'client' && currentPersonaUser) {
+                dom.modalStudentSelect.disabled = false;
+                
+                let allowedJinetes = [];
+                const esJinetteActivo = currentPersonaUser.es_alumno || currentPersonaUser.es_propietario;
+                if (esJinetteActivo && !currentPersonaUser.es_apoderado_puro) {
+                    allowedJinetes.push({ nombre: currentPersonaUser.nombre, id: currentPersonaUser.id });
+                }
+                
+                if (currentPersonaUser.es_apoderado || currentPersonaUser.es_propietario) {
+                    const pupilos = personas.filter(p => p.apoderado_id == currentPersonaUser.id);
+                    pupilos.forEach(p => {
+                        if (!allowedJinetes.some(j => j.id === p.id)) {
+                            allowedJinetes.push({ nombre: p.nombre, id: p.id });
+                        }
+                    });
+                }
+
+                allowedJinetes.forEach(j => {
+                    const opt = document.createElement('option');
+                    opt.value = j.nombre;
+                    opt.textContent = j.nombre + (j.id === currentPersonaUser.id ? ' (Tú)' : ' (Pupilo)');
+                    dom.modalStudentSelect.appendChild(opt);
+                });
+
+                if (allowedJinetes.length > 0) {
+                    dom.modalStudentSelect.value = allowedJinetes[0].nombre;
+                }
+
+                dom.modalStudentSelect.onchange = () => updateHorseOptionsForSelectedStudent();
+            } else {
+                dom.modalStudentSelect.disabled = false;
+                personas.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.nombre;
+                    opt.textContent = `${p.nombre} ${p.es_alumno ? '(Alumno)' : (p.es_propietario ? '(Dueño)' : '')}`;
+                    dom.modalStudentSelect.appendChild(opt);
+                });
+                dom.modalStudentSelect.onchange = () => updateHorseOptionsForSelectedStudent();
+            }
+            
+            populateModalProfeOptions();
+            updateHorseOptionsForSelectedStudent();
+        }
+
+        function updateHorseOptionsForSelectedStudent() {
+            const selectedStudentName = dom.modalStudentSelect.value;
+            const studentObj = personas.find(p => p.nombre === selectedStudentName);
+            
+            dom.modalHorseSelect.innerHTML = '';
+            const allActiveHorses = horses.filter(h => h.active);
+            
+            const targetPersonId = studentObj ? studentObj.id : (currentPersonaUser ? currentPersonaUser.id : null);
+
+            let ownHorses = [];
+            let otherParticularHorses = [];
+            let schoolHorses = [];
+
+            allActiveHorses.forEach(h => {
+                if (targetPersonId && h.ownerPersonaId == targetPersonId) {
+                    ownHorses.push(h);
+                } else if (h.type === 'escuela') {
+                    schoolHorses.push(h);
+                } else {
+                    otherParticularHorses.push(h);
+                }
+            });
+
+            const orderedHorses = [...ownHorses, ...otherParticularHorses, ...schoolHorses];
+
+            orderedHorses.forEach(h => {
+                const opt = document.createElement('option');
+                opt.value = h.name;
+                
+                let ownerText = 'Escuela';
+                if (h.type !== 'escuela') {
+                    const isOwn = targetPersonId && h.ownerPersonaId == targetPersonId;
+                    ownerText = isOwn ? 'Particular - Propio' : `Particular - Dueño: ${h.owner || 'Otro'}`;
+                }
+                
+                opt.textContent = `${h.name} (${ownerText})`;
+                dom.modalHorseSelect.appendChild(opt);
+            });
+        }
+
+        function populateCaballosChecklistInPersonaModal(personId = null) {
+            dom.pCaballosChecklist.innerHTML = '';
+            if (horses.length === 0) {
+                dom.pCaballosChecklist.innerHTML = '<div class="text-hipo-textMuted text-[10px]">No hay caballos registrados en cuadra.</div>';
+                return;
+            }
+
+            horses.forEach(h => {
+                const isChecked = personId && h.ownerPersonaId == personId;
+                const label = document.createElement('label');
+                label.className = "flex items-center gap-2 cursor-pointer bg-hipo-card p-1.5 rounded-lg border border-hipo-border hover:border-hipo-accent transition-all";
+                label.innerHTML = `
+                    <input type="checkbox" value="${h.id}" ${isChecked ? 'checked' : ''} class="accent-hipo-accent">
+                    <span class="text-white font-bold">${h.box}: ${h.name}</span>
+                    <span class="text-hipo-textMuted text-[9px] ml-auto">(${h.type})</span>
+                `;
+                dom.pCaballosChecklist.appendChild(label);
+            });
+        }
+
+        window.openInlineQuickPropietarioModal = function() {
+            dom.quickType.value = 'propietario';
+            dom.quickInlineTitle.textContent = '➕ Crear Propietario Rápido';
+            dom.quickPersonFields.classList.remove('hidden');
+            dom.quickHorseFields.classList.add('hidden');
+            dom.quickInlineForm.reset();
+            dom.quickInlineModal.classList.remove('hidden');
+        };
+
+        window.openInlineQuickApoderadoModal = function() {
+            dom.quickType.value = 'apoderado';
+            dom.quickInlineTitle.textContent = '➕ Crear Apoderado Rápido';
+            dom.quickPersonFields.classList.remove('hidden');
+            dom.quickHorseFields.classList.add('hidden');
+            dom.quickInlineForm.reset();
+            dom.quickInlineModal.classList.remove('hidden');
+        };
+
+        window.openInlineQuickHorseModal = function() {
+            dom.quickType.value = 'horse';
+            dom.quickInlineTitle.textContent = '➕ Crear Caballo Rápido';
+            dom.quickPersonFields.classList.add('hidden');
+            dom.quickHorseFields.classList.remove('hidden');
+            dom.quickInlineForm.reset();
+            dom.quickInlineModal.classList.remove('hidden');
+        };
+
+        window.openPersonaModal = function(id = null) {
+            dom.personaForm.reset();
+            dom.personaId.value = '';
+            populateApoderadosDropdown();
+            populateVeterinariosDropdown();
+            populateProfesoresDropdown();
+
+            if (id) {
+                const p = personas.find(i => i.id === id);
+                if (p) {
+                    dom.personaModalTitle.textContent = `✏️ Editar Persona: ${p.nombre}`;
+                    dom.personaId.value = p.id;
+                    dom.pNombre.value = p.nombre || '';
+                    dom.pRut.value = p.rut || '';
+                    dom.pTelefono.value = p.telefono || '';
+                    dom.pEmail.value = p.email || '';
+                    dom.pPassword.value = p.password || 'socio123';
+                    dom.chkEsPropietario.checked = p.es_propietario === true;
+                    dom.chkEsAlumno.checked = p.es_alumno === true;
+                    dom.chkEsApoderado.checked = p.es_apoderado === true;
+                    dom.chkEsStaff.checked = p.es_staff === true;
+                    dom.pCargoStaff.value = p.cargo_staff || 'Ordenanza';
+                    dom.pVet.value = p.vet_cabecera || '';
+                    dom.pMontoMax.value = p.monto_max_emergencia || '';
+                    dom.pNivel.value = p.nivel_hipico || 'Iniciación';
+                    dom.pProfesor.value = p.profesor_asignado || 'Club';
+                    dom.chkEsMenor.checked = p.es_menor === true;
+                    dom.pApoderadoId.value = p.apoderado_id || '';
+                    dom.pFichaMedica.value = p.ficha_medica || '';
+                    populateCaballosChecklistInPersonaModal(p.id);
+                }
+            } else { 
+                dom.personaModalTitle.textContent = '👥 Registrar Nueva Persona';
+                dom.chkEsPropietario.checked = true;
+                dom.pPassword.value = 'socio123';
+                populateCaballosChecklistInPersonaModal(null);
+            }
+
+            togglePersonaFormBlocks();
+            dom.blockApoderadoSelect.classList.toggle('hidden', !dom.chkEsMenor.checked);
+            dom.personaModal.classList.remove('hidden');
+        };
+
+        function setPeopleFilter(filter) {
+            currentPeopleFilter = filter;
+            dom.filterPeopleAll.className = "py-1.5 rounded-lg font-bold " + (filter === 'all' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted');
+            dom.filterPeopleProp.className = "py-1.5 rounded-lg font-bold " + (filter === 'prop' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted');
+            dom.filterPeopleAlum.className = "py-1.5 rounded-lg font-bold " + (filter === 'alum' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted');
+            dom.filterPeopleApod.className = "py-1.5 rounded-lg font-bold " + (filter === 'apod' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted');
+            dom.filterPeopleStaff.className = "py-1.5 rounded-lg font-bold " + (filter === 'staff' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted');
+            renderPeople();
+        }
+
+        function renderPeople() {
+            dom.personasGrid.innerHTML = '';
+            let list = personas;
+
+            if (currentRole === 'client' && currentPersonaUser) {
+                list = list.filter(p => p.id === currentPersonaUser.id);
+            } else {
+                if (currentPeopleFilter === 'prop') list = list.filter(p => p.es_propietario);
+                if (currentPeopleFilter === 'alum') list = list.filter(p => p.es_alumno);
+                if (currentPeopleFilter === 'apod') list = list.filter(p => p.es_apoderado);
+                if (currentPeopleFilter === 'staff') list = list.filter(p => p.es_staff);
+            }
+
+            const query = dom.searchPersona.value.toLowerCase().trim();
+            if (query) list = list.filter(p => p.nombre.toLowerCase().includes(query) || (p.rut && p.rut.includes(query)));
+
+            if (list.length === 0) {
+                dom.personasGrid.innerHTML = `<div class="text-hipo-textMuted text-center py-6 text-xs">No se encontraron personas.</div>`;
+                return;
+            }
+
+            list.forEach(p => {
+                const div = document.createElement('div');
+                div.className = "bg-hipo-card p-3 rounded-2xl border border-hipo-border space-y-2 cursor-pointer hover:border-hipo-accent transition-all";
+                div.onclick = () => openPersonaModal(p.id);
+
+                let badges = '';
+                if (p.es_propietario) badges += `<span class="bg-hipo-accent/20 text-hipo-accent text-[9px] font-bold px-2 py-0.5 rounded">🏡 Dueño</span> `;
+                if (p.es_alumno) badges += `<span class="bg-hipo-purple/20 text-hipo-purple text-[9px] font-bold px-2 py-0.5 rounded">🎓 Alumno</span> `;
+                if (p.es_apoderado) badges += `<span class="bg-hipo-warning/20 text-hipo-warning text-[9px] font-bold px-2 py-0.5 rounded">🛡️ Apoderado</span> `;
+                if (p.es_staff) badges += `<span class="bg-hipo-success/20 text-hipo-success text-[9px] font-bold px-2 py-0.5 rounded">🧑‍🔧 Staff (${p.cargo_staff || 'General'})</span>`;
+
+                let linkedHorses = horses.filter(h => h.ownerPersonaId == p.id);
+                let horsesStr = linkedHorses.length > 0 ? linkedHorses.map(h => h.name).join(', ') : 'Sin caballos registrados';
+
+                let pupilosList = personas.filter(pupilo => pupilo.apoderado_id == p.id);
+                let pupilosStr = pupilosList.length > 0 ? pupilosList.map(pupilo => pupilo.nombre).join(', ') : '';
+
+                div.innerHTML = `
+                    <div class="flex justify-between items-start border-b border-hipo-border pb-1.5">
+                        <div>
+                            <strong class="text-white text-sm block">${p.nombre}</strong>
+                            <span class="text-[10px] text-hipo-textMuted">RUT: ${p.rut || 'N/R'} • Tel: ${p.telefono || 'N/R'} • Clave: <strong class="text-hipo-accent">${p.password || 'socio123'}</strong></span>
+                        </div>
+                        <div class="flex gap-1 flex-wrap">${badges}</div>
+                    </div>
+                    <div class="text-[11px] text-hipo-textMuted space-y-0.5">
+                        ${p.es_propietario ? `<div>Caballos: <strong class="text-white">${horsesStr}</strong></div>` : ''}
+                        ${p.es_apoderado ? `<div>Pupilos a Cargo: <strong class="text-white">${pupilosStr || 'Ninguno asignado'}</strong></div>` : ''}
+                        ${p.es_alumno ? `<div>Nivel: <strong class="text-white">${p.nivel_hipico}</strong> (Profe: ${p.profesor_asignado || 'Club'})</div>` : ''}
+                    </div>
+                `;
+                dom.personasGrid.appendChild(div);
+            });
+        }
+
+        function renderOrdenanza() {
+            dom.ordenanzaRidingList.innerHTML = '';
+            let todayStr = getTodayStr();
+            let todayClasses = classesList.filter(c => c.fecha === todayStr && !c.anulada);
+
+            if (currentRole === 'client' && currentPersonaUser) {
+                todayClasses = todayClasses.filter(c => c.student === currentPersonaUser.nombre);
+            }
+
+            if (todayClasses.length === 0) {
+                dom.ordenanzaRidingList.innerHTML = `<div class="text-hipo-textMuted text-center py-4 text-xs">No hay montas agendadas hoy.</div>`;
+            }
+
+            todayClasses.forEach(c => {
+                const div = document.createElement('div');
+                div.className = "bg-hipo-bg p-3 rounded-xl border border-hipo-border flex flex-col gap-2 text-xs cursor-pointer hover:border-hipo-accent transition-all";
+                div.onclick = () => showSection('agenda');
+                div.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <span class="text-hipo-accent font-black text-xs">${c.time}</span>
+                            <span class="text-white font-bold block">${c.box}: ${c.horse}</span>
+                        </div>
+                        <span class="text-[10px] px-2 py-0.5 rounded font-bold ${c.type === 'Monta Libre' ? 'bg-hipo-accent/20 text-hipo-accent' : 'bg-hipo-purple/20 text-hipo-purple'}">${c.type}</span>
+                    </div>
+                    <div class="text-[11px] text-hipo-textMuted flex justify-between">
+                        <span>Jinete: <strong class="text-white">${c.student}</strong></span>
+                        <span>${c.profe}</span>
+                    </div>
+                `;
+                dom.ordenanzaRidingList.appendChild(div);
+            });
+
+            dom.ordenanzaFeedList.innerHTML = '';
+            let feedHorses = horses.filter(h => h.active);
+            if (currentRole === 'client' && currentPersonaUser) {
+                feedHorses = feedHorses.filter(h => h.ownerPersonaId == currentPersonaUser.id);
+            }
+
+            feedHorses.forEach(h => {
+                const div = document.createElement('div');
+                div.className = "bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-1.5 text-xs cursor-pointer hover:border-hipo-warning transition-all";
+                div.onclick = () => openHorseDetail(h.id);
+                div.innerHTML = `
+                    <div class="flex justify-between items-center border-b border-hipo-border/50 pb-1">
+                        <strong class="text-white font-bold">${h.box}: ${h.name}</strong>
+                        <span class="text-[10px] text-hipo-accent font-bold">${h.owner || 'Escuela'}</span>
+                    </div>
+                `;
+                dom.ordenanzaFeedList.appendChild(div);
+            });
+        }
+
+        function renderDashboard() {
+            let activeHorses = horses.filter(h => h.active);
+            if (currentRole === 'client' && currentPersonaUser) {
+                activeHorses = activeHorses.filter(h => h.ownerPersonaId == currentPersonaUser.id);
+            }
+
+            let todayClasses = classesList.filter(c => c.fecha === getTodayStr() && !c.anulada);
+            if (currentRole === 'client' && currentPersonaUser) {
+                todayClasses = todayClasses.filter(c => c.student === currentPersonaUser.nombre);
+            }
+
+            dom.dashHorseCount.textContent = activeHorses.length;
+            dom.dashClassCount.textContent = todayClasses.length;
+            dom.dashUrgentShoe.textContent = activeHorses.filter(h => h.shoeingDays <= 3).length;
+
+            dom.dashTodayClasses.innerHTML = '';
+            if (todayClasses.length === 0) dom.dashTodayClasses.innerHTML = `<div class="text-hipo-textMuted text-center py-2 text-[11px]">Sin clases agendadas hoy.</div>`;
+            todayClasses.forEach(c => {
+                const isValidated = c.vistoProfe && c.vistoOrdenanza;
+                const div = document.createElement('div');
+                div.className = "bg-hipo-bg p-2.5 rounded-xl border border-hipo-border flex items-center justify-between cursor-pointer hover:border-hipo-accent transition-all";
+                div.onclick = () => showSection('agenda');
+                div.innerHTML = `
+                    <div>
+                        <strong class="text-white block">${c.time} • ${c.student}</strong>
+                        <span class="text-hipo-textMuted text-[10px]">Caballo: <strong class="text-white">${c.horse}</strong> (${c.profe})</span>
+                    </div>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded ${isValidated ? 'bg-hipo-success/20 text-hipo-success' : 'bg-hipo-warning/20 text-hipo-warning'}">${isValidated ? 'Validada' : 'Pendiente'}</span>
+                `;
+                dom.dashTodayClasses.appendChild(div);
+            });
+
+            dom.dashHealthAlerts.innerHTML = '';
+            const alerts = activeHorses.filter(h => h.shoeingDays <= 3);
+            if (alerts.length === 0) dom.dashHealthAlerts.innerHTML = `<div class="text-hipo-textMuted text-center py-2 text-[11px]">Sin alertas urgentes.</div>`;
+            alerts.forEach(h => {
+                const div = document.createElement('div');
+                div.className = "bg-hipo-bg p-2.5 rounded-xl border border-hipo-border flex items-center justify-between cursor-pointer hover:border-hipo-warning transition-all";
+                div.onclick = () => openHorseDetail(h.id);
+                div.innerHTML = `
+                    <div>
+                        <strong class="text-white block">${h.name} (${h.box})</strong>
+                        <span class="text-hipo-warning text-[10px]">Herraje urgente (${h.shoeingDays} días restantes)</span>
+                    </div>
+                    <span class="bg-hipo-warning/20 text-hipo-warning px-2 py-0.5 rounded text-[10px] font-bold">Ver &rarr;</span>
+                `;
+                dom.dashHealthAlerts.appendChild(div);
+            });
+        }
+
+        function renderHorses() {
+            const list = getVisibleHorses();
+            dom.horsesGrid.innerHTML = '';
+
+            if (list.length === 0) {
+                dom.horsesGrid.innerHTML = `<div class="text-hipo-textMuted text-center py-6 text-xs">No se encontraron caballos.</div>`;
+                return;
+            }
+
+            list.forEach(h => {
+                const card = document.createElement('div');
+                card.className = "bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-2.5 cursor-pointer hover:border-hipo-accent transition-all";
+                card.onclick = () => openHorseDetail(h.id);
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between border-b border-hipo-border pb-1.5">
+                        <div>
+                            <h3 class="font-bold text-sm text-white">${h.name} ${!h.active ? '<span class="text-hipo-danger text-[9px]">(Inactivo)</span>' : ''}</h3>
+                            <span class="text-[10px] text-hipo-textMuted">${h.box} • Dueño: ${h.owner || 'Escuela'}</span>
+                        </div>
+                        <span class="bg-hipo-accent/20 text-hipo-accent border border-hipo-accent/30 px-2 py-0.5 rounded-full text-[9px] font-bold">${h.type}</span>
+                    </div>
+
+                    <div class="space-y-1 text-xs">
+                        <div class="flex justify-between text-hipo-textMuted text-[11px]">
+                            <span>Herraje:</span>
+                            <strong class="${h.shoeingDays <= 3 ? 'text-hipo-warning font-black' : 'text-white'}">En ${h.shoeingDays} días</strong>
+                        </div>
+                    </div>
+
+                    <button class="w-full bg-hipo-bg hover:bg-hipo-cardLight text-hipo-accent border border-hipo-border p-2 rounded-xl text-xs font-bold transition-colors">
+                        📄 Ficha, Clínica & Bitácora Completa
+                    </button>
+                `;
+                dom.horsesGrid.appendChild(card);
+            });
+        }
+
+        function renderAgenda() {
+            dom.agendaList.innerHTML = '';
+            let filteredClasses = classesList;
+
+            if (currentRole === 'client' && currentPersonaUser) {
+                filteredClasses = filteredClasses.filter(c => c.student === currentPersonaUser.nombre);
+            }
+            if (selectedAgendaDate !== 'ALL') filteredClasses = filteredClasses.filter(c => c.fecha === selectedAgendaDate);
+
+            if (filteredClasses.length === 0) {
+                dom.agendaList.innerHTML = `<div class="text-hipo-textMuted text-center py-8 text-xs">Sin reservas para este día.</div>`;
+                return;
+            }
+
+            filteredClasses.forEach(c => {
+                const div = document.createElement('div');
+                div.className = c.anulada 
+                    ? "bg-hipo-danger/15 p-3 rounded-2xl border border-hipo-danger/30 space-y-2 opacity-80"
+                    : "bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-2.5";
+
+                let statusBadges = '';
+                if (c.anulada) {
+                    statusBadges = `<span class="bg-hipo-danger/25 text-hipo-danger border border-hipo-danger/40 text-[10px] font-bold px-2 py-0.5 rounded-md">❌ RES. ANULADA</span>`;
+                } else {
+                    const isFree = c.profe.includes('Monta Libre');
+                    const profeBadge = isFree 
+                        ? `<span class="bg-hipo-cardLight text-hipo-textMuted text-[9px] font-bold px-1.5 py-0.5 rounded">🐴 Libre</span>`
+                        : (c.vistoProfe 
+                            ? `<span class="bg-hipo-accent/20 text-hipo-accent border border-hipo-accent/30 text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5"><span>✔</span> Profe Ok</span>` 
+                            : `<span class="bg-hipo-warning/20 text-hipo-warning border border-hipo-warning/30 text-[9px] font-bold px-1.5 py-0.5 rounded">⌛ Pend. Profe</span>`);
+                    
+                    const ordBadge = c.vistoOrdenanza 
+                        ? `<span class="bg-hipo-success/20 text-hipo-success border border-hipo-success/30 text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5"><span>✔</span> Pesebrera Ok</span>` 
+                        : `<span class="bg-hipo-warning/20 text-hipo-warning border border-hipo-warning/30 text-[9px] font-bold px-1.5 py-0.5 rounded">⌛ Pend. Pesebrera</span>`;
+
+                    statusBadges = `<div class="flex gap-1 flex-wrap">${profeBadge}${ordBadge}</div>`;
+                }
+
+                let actionButtons = '';
+                if (!c.anulada) {
+                    const isFree = c.profe.includes('Monta Libre');
+                    if (!isFree && (currentRole === 'admin' || currentRole === 'profe')) {
+                        actionButtons += `<button onclick="toggleValidationCloud(${c.id}, 'visto_profe', ${c.vistoProfe})" class="text-[10px] ${c.vistoProfe ? 'bg-hipo-accent text-hipo-bg font-extrabold' : 'bg-hipo-bg text-hipo-textMuted border border-hipo-border'} font-bold px-2.5 py-1 rounded-lg flex items-center gap-1">
+                            <span>✔</span> <span>${c.vistoProfe ? 'Validado Profe' : 'Validar Ticket Profe'}</span>
+                        </button>`;
+                    }
+
+                    if (currentRole === 'admin' || currentRole === 'ordenanza') {
+                        actionButtons += `<button onclick="toggleValidationCloud(${c.id}, 'visto_ordenanza', ${c.vistoOrdenanza})" class="text-[10px] ${c.vistoOrdenanza ? 'bg-hipo-success text-white font-extrabold' : 'bg-hipo-bg text-hipo-textMuted border border-hipo-border'} font-bold px-2.5 py-1 rounded-lg flex items-center gap-1">
+                            <span>✔</span> <span>${c.vistoOrdenanza ? 'Confirmado Pesebrera' : 'Validar Ticket Pesebrera'}</span>
+                        </button>`;
+                    }
+
+                    actionButtons += `<button onclick="markAnuladaClass(${c.id}, '${c.student}')" class="text-[10px] bg-hipo-danger/20 text-hipo-danger border border-hipo-danger/30 font-bold px-2 py-1 rounded-lg">
+                        🗑️ Anular
+                    </button>`;
+                }
+
+                div.innerHTML = `
+                    <div class="flex justify-between items-start border-b border-hipo-border/40 pb-2">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-black text-hipo-accent">${c.time}</span>
+                                <span class="text-[10px] text-hipo-textMuted bg-hipo-bg px-2 py-0.5 rounded border border-hipo-border">${c.fecha}</span>
+                            </div>
+                            <strong class="text-white text-xs block mt-0.5">${c.student}</strong>
+                            <span class="text-[11px] text-hipo-textMuted">Caballo: <strong class="text-white">${c.horse}</strong> (${c.profe})</span>
+                        </div>
+                        ${statusBadges}
+                    </div>
+                    <div class="flex justify-end gap-1.5 pt-0.5 flex-wrap">${actionButtons}</div>
+                `;
+                dom.agendaList.appendChild(div);
+            });
+        }
+
+        function renderFinance() {
+            if (currentRole === 'ordenanza' || currentRole === 'profe') {
+                dom.financeContent.innerHTML = `<div class="p-4 text-center text-hipo-textMuted text-xs">Acceso restringido.</div>`;
+                return;
+            }
+
+            dom.financeContent.innerHTML = '';
+
+            if (currentRole === 'client' && currentPersonaUser) {
+                dom.financeTitle.textContent = `💰 Cuenta Privada: ${currentPersonaUser.nombre}`;
+                
+                const myDirectHorses = horses.filter(h => h.ownerPersonaId == currentPersonaUser.id);
+                const pupilosIds = personas.filter(p => p.apoderado_id == currentPersonaUser.id).map(p => p.id);
+                const pupilosHorses = horses.filter(h => pupilosIds.includes(h.ownerPersonaId));
+                
+                const allMyAssociatedHorses = Array.from(new Set([...myDirectHorses, ...pupilosHorses].map(h => h.id)))
+                    .map(id => horses.find(h => h.id === id));
+
+                const totalBal = allMyAssociatedHorses.reduce((acc, h) => acc + h.balance, 0);
+
+                let myHorsesDetail = allMyAssociatedHorses.map(h => `
+                    <div class="flex justify-between text-[11px] text-hipo-textMuted">
+                        <span>${h.box}: ${h.name} ${h.ownerPersonaId != currentPersonaUser.id ? '(Pupilo)' : ''}</span>
+                        <span class="${h.balance < 0 ? 'text-hipo-danger font-bold' : 'text-white'}">$${Math.abs(h.balance).toLocaleString('es-CL')}</span>
+                    </div>
+                `).join('');
+
+                dom.financeContent.innerHTML = `
+                    <div class="bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-2 text-xs">
+                        <div class="flex justify-between border-b border-hipo-border pb-1.5">
+                            <span class="text-hipo-textMuted font-bold">Saldo Total Pendiente:</span>
+                            <strong class="${totalBal < 0 ? 'text-hipo-danger' : 'text-hipo-success'} text-sm">$${Math.abs(totalBal).toLocaleString('es-CL')}</strong>
+                        </div>
+                        <div class="space-y-1 pt-1">
+                            ${myHorsesDetail || '<div class="text-hipo-textMuted">Sin caballos asignados a ti o a tus pupilos.</div>'}
+                        </div>
+                        <button class="w-full bg-hipo-success text-white font-bold py-2 rounded-xl text-xs mt-2">
+                            📤 Adjuntar Comprobante
+                        </button>
+                    </div>
+                `;
+            } else {
+                dom.financeTitle.textContent = "💰 Cuentas Pendientes Cuadra - Lo Arcaya";
+
+                let peopleAccountMap = {};
+                const validResponsiblePeople = personas.filter(p => !(p.es_menor && p.apoderado_id));
+
+                validResponsiblePeople.forEach(p => {
+                    let pHorses = horses.filter(h => h.ownerPersonaId == p.id);
+
+                    if (p.es_apoderado || p.es_propietario) {
+                        const pupilosIds = personas.filter(pupilo => pupilo.apoderado_id == p.id).map(pupilo => pupilo.id);
+                        const pupilosHorses = horses.filter(h => pupilosIds.includes(h.ownerPersonaId));
+                        
+                        const combinedHorses = [...pHorses, ...pupilosHorses];
+                        pHorses = Array.from(new Set(combinedHorses.map(h => h.id))).map(id => combinedHorses.find(h => h.id === id));
+                    }
+
+                    const totalDebt = pHorses.reduce((acc, h) => acc + h.balance, 0);
+
+                    if (totalDebt < 0 || pHorses.some(h => h.balance < 0)) {
+                        peopleAccountMap[p.id] = {
+                            persona: p,
+                            totalDebt: totalDebt,
+                            horses: pHorses
+                        };
+                    }
+                });
+
+                horses.filter(h => h.balance < 0 && !h.ownerPersonaId).forEach(h => {
+                    const fallbackKey = `unlinked_${h.owner || 'SinAsignar'}`;
+                    if (!peopleAccountMap[fallbackKey]) {
+                        peopleAccountMap[fallbackKey] = {
+                            persona: { nombre: h.owner || 'Club / Sin Asignar' },
+                            totalDebt: 0,
+                            horses: []
+                        };
+                    }
+                    peopleAccountMap[fallbackKey].totalDebt += h.balance;
+                    peopleAccountMap[fallbackKey].horses.push(h);
+                });
+
+                const keys = Object.keys(peopleAccountMap);
+                if (keys.length === 0) {
+                    dom.financeContent.innerHTML = `<div class="text-hipo-textMuted text-center py-6 text-xs">✔ No hay cuentas ni cargos pendientes en el club.</div>`;
+                    return;
+                }
+
+                keys.forEach(k => {
+                    const entry = peopleAccountMap[k];
+                    const div = document.createElement('div');
+                    div.className = "bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-2 text-xs";
+
+                    let horseItems = entry.horses.map(h => `
+                        <div class="flex justify-between items-center text-[11px] text-hipo-textMuted pl-2 border-l-2 border-hipo-border">
+                            <span>${h.box}: <strong class="text-white">${h.name}</strong> ${h.ownerPersonaId && h.ownerPersonaId != entry.persona.id ? '(Pupilo)' : ''}</span>
+                            <span class="${h.balance < 0 ? 'text-hipo-danger font-bold' : 'text-slate-300'}">$${Math.abs(entry.totalDebt).toLocaleString('es-CL')}</span>
+                        </div>
+                    `).join('');
+
+                    div.innerHTML = `
+                        <div class="flex justify-between items-center border-b border-hipo-border/60 pb-1.5">
+                            <div>
+                                <strong class="text-white text-sm font-bold block">${entry.persona.nombre}</strong>
+                                <span class="text-[10px] text-hipo-textMuted">${entry.horses.length} caballo(s) a cargo/cuenta</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[10px] text-hipo-textMuted block">Deuda Total</span>
+                                <strong class="text-hipo-danger font-black text-sm">$${Math.abs(entry.totalDebt).toLocaleString('es-CL')}</strong>
+                            </div>
+                        </div>
+                        <div class="space-y-1 pt-1">
+                            ${horseItems}
+                        </div>
+                    `;
+                    dom.financeContent.appendChild(div);
+                });
+            }
+        }
+
+        function openClassModal() {
+            populateJinetesDropdownInClassModal();
+            dom.modalClassDate.value = getTodayStr();
+            dom.classModal.classList.remove('hidden');
+        }
+
+        function renderAll() {
+            renderDashboard();
+            renderCamion();
+            renderOrdenanza();
+            renderHorses();
+            renderCampaigns();
+            renderPeople();
+            renderAgenda();
+            renderFinance();
+        }
+
+        function switchRole(role) {
+            currentRole = role;
+            if (role === 'client' && currentPersonaUser) {
+                dom.lblCurrentRoleText.textContent = currentPersonaUser.nombre;
+                dom.roleBannerText.textContent = `🐴 Modo Socio: ${currentPersonaUser.nombre}`;
+                
+                if (currentPersonaUser.es_alumno && !currentPersonaUser.es_propietario) {
+                    dom.cardUrgentShoe.classList.add('hidden');
+                    dom.cardCampaigns.classList.add('hidden');
+                    dom.blockHealthAlertsContainer.classList.add('hidden');
+                } else {
+                    dom.cardUrgentShoe.classList.remove('hidden');
+                    dom.cardCampaigns.classList.remove('hidden');
+                    dom.blockHealthAlertsContainer.classList.remove('hidden');
+                }
+            } else {
+                dom.lblCurrentRoleText.textContent = role.toUpperCase();
+                dom.cardUrgentShoe.classList.remove('hidden');
+                dom.cardCampaigns.classList.remove('hidden');
+                dom.blockHealthAlertsContainer.classList.remove('hidden');
+            }
+
+            dom.navOrdenanza.classList.remove('hidden');
+
+            if (role === 'admin') {
+                dom.roleBannerText.textContent = "👑 Modo Admin: Control Total";
+                dom.navFinance.classList.remove('hidden');
+                dom.btnOpenNewHorseModal.classList.remove('hidden');
+                dom.btnOpenNewCampaignModal.classList.remove('hidden');
+            } else if (role === 'profe') {
+                dom.roleBannerText.textContent = "🎓 Modo Profesor: Clases y Pista";
+                dom.navOrdenanza.classList.add('hidden');
+                dom.navFinance.classList.add('hidden');
+                dom.btnOpenNewHorseModal.classList.remove('hidden');
+                dom.btnOpenNewCampaignModal.classList.remove('hidden');
+            } else if (role === 'ordenanza') {
+                dom.roleBannerText.textContent = "🧹 Modo Ordenanza: Pesebrera & Camión";
+                dom.navFinance.classList.add('hidden');
+                dom.btnOpenNewHorseModal.classList.add('hidden');
+                dom.btnOpenNewCampaignModal.classList.add('hidden');
+                showSection('ordenanza');
+            } else {
+                dom.navOrdenanza.classList.add('hidden');
+                dom.navFinance.classList.remove('hidden');
+                dom.btnOpenNewHorseModal.classList.add('hidden');
+                dom.btnOpenNewCampaignModal.classList.add('hidden');
+            }
+            renderAll();
+        }
+
+        window.markAnuladaClass = async function(classId, studentName) {
+            if (confirm(`¿Estás seguro de marcar la reserva de "${studentName}" como ANULADA?`)) {
+                const { error } = await db.from('clases').update({ anulada: true }).eq('id', classId);
+                if (error) alert("Error: " + error.message);
+                else fetchCloudData();
+            }
+        };
+
+        window.toggleValidationCloud = async function(classId, field, currentValue) {
+            let updatePayload = {};
+            updatePayload[field] = !currentValue;
+            const { error } = await db.from('clases').update(updatePayload).eq('id', classId);
+            if (error) alert("Error al validar: " + error.message);
+            else fetchCloudData();
+        };
+
+        function highlightAgendaDayButtons(type) {
+            dom.btnDayToday.className = "py-1.5 rounded-lg font-bold " + (type === 'today' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted border border-hipo-border');
+            dom.btnDayTomorrow.className = "py-1.5 rounded-lg font-bold " + (type === 'tomorrow' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted border border-hipo-border');
+            dom.btnDayAll.className = "py-1.5 rounded-lg font-bold " + (type === 'all' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted border border-hipo-border');
+        }
+
+        window.filterUrgentHorsesOnGrid = function() {
+            isUrgentFilterActive = true;
+            dom.searchHorse.value = '';
+            showSection('horses');
+            renderHorses();
+        };
+
+        function openHorseFormModal(id = null) {
+            dom.horseForm.reset();
+            dom.hFormId.value = '';
+            populatePropietariosDropdown();
+            populateHerrerosDropdown();
+
+            if (id) {
+                const h = horses.find(item => item.id === id);
+                if (h) {
+                    dom.horseModalTitle.textContent = `✏️ Editar Ficha: ${h.name}`;
+                    dom.hFormId.value = h.id;
+                    dom.hFormNombre.value = h.name || '';
+                    dom.hFormBox.value = h.box || '';
+                    dom.hFormEstado.value = h.active ? 'true' : 'false';
+                    dom.hFormTipo.value = h.type || 'particular';
+                    dom.hFormPropietarioSelect.value = h.ownerPersonaId || '';
+                    dom.hFormAlzada.value = h.alzada !== 'N/R' ? h.alzada : '';
+                    dom.hFormPeso.value = h.peso !== 'N/R' ? h.peso : '';
+                    dom.hFormUltHerraje.value = h.ultHerraje || '';
+                    populateHerrerosDropdown(h.herreroNombre);
+                    dom.hFormProxVacuna.value = h.proxVacuna || '';
+                    dom.hFormProxDesparasitado.value = h.proxDesparasitado || '';
+                    dom.hFormProxDientes.value = h.proxDientes || '';
+                    dom.hFormRacM.value = h.feedM || '';
+                    dom.hFormRacT.value = h.feedT || '';
+                    dom.hFormRacN.value = h.feedN || '';
+                    dom.hFormNotas.value = h.notes || '';
+                }
+            } else { 
+                dom.horseModalTitle.textContent = '🐴 Agregar Nuevo Caballo';
+                dom.hFormEstado.value = 'true';
+            }
+            dom.horseFormModal.classList.remove('hidden');
+        }
+
+        async function openHorseDetail(id) {
+            activeHorseId = id;
+            const h = horses.find(item => item.id === id);
+            if (!h) return;
+
+            dom.modalDetailName.textContent = h.name;
+            dom.modalDetailStatusBadge.textContent = h.active ? 'Activo' : 'Inactivo';
+            dom.modalDetailStatusBadge.className = `text-[9px] font-bold px-2 py-0.5 rounded ${h.active ? 'bg-hipo-success/25 text-hipo-success' : 'bg-hipo-danger/20 text-hipo-danger'}`;
+
+            dom.modalDetailBox.textContent = h.box;
+            dom.modalDetailOwner.textContent = h.owner || 'Club Ecuestre';
+            dom.modalDetailType.textContent = h.type || 'Particular';
+            dom.modalDetailMorpho.textContent = `${h.alzada} / ${h.peso}`;
+            dom.modalDetailHerrero.textContent = h.herreroNombre || 'Club';
+
+            dom.modalDetailUltHerraje.textContent = h.ultHerraje || 'Sin registro';
+            dom.modalDetailShoeing.textContent = `En ${h.shoeingDays} días`;
+            dom.modalDetailVacuna.textContent = h.proxVacuna || 'Sin agendar';
+            dom.modalDetailDesparasitado.textContent = h.proxDesparasitado || 'Sin agendar';
+            dom.modalDetailDientes.textContent = h.proxDientes || 'Sin agendar';
+
+            dom.modalDetailFeedM.textContent = h.feedM || '1.5kg Pellet + 1/2 Fardo';
+            dom.modalDetailFeedT.textContent = h.feedT || '1.5kg Pellet';
+            dom.modalDetailFeedN.textContent = h.feedN || '1/2 Fardo Pasto Miel';
+            dom.modalDetailNotes.textContent = h.notes || 'Sin observaciones registradas.';
+
+            dom.modalDetailBitacoraList.innerHTML = '<div class="text-hipo-textMuted text-[10px]">Cargando bitácora...</div>';
+            
+            const { data: bData } = await db.from('bitacora_caballos').select('*').eq('caballo_id', h.id).order('created_at', { ascending: false });
+            dom.modalDetailBitacoraList.innerHTML = '';
+            
+            if (bData && bData.length > 0) {
+                bData.forEach(b => {
+                    const d = new Date(b.created_at).toLocaleDateString('es-CL');
+                    const div = document.createElement('div');
+                    div.className = "bg-hipo-card p-2 rounded-lg text-[10px] border border-hipo-border";
+                    div.innerHTML = `
+                        <div class="flex justify-between font-bold text-hipo-accent">
+                            <span>${b.tipo_evento} (${d})</span>
+                            <span class="text-hipo-textMuted">${b.responsable || 'Club'}</span>
+                        </div>
+                        <p class="text-slate-200 mt-0.5">${b.detalle}</p>
+                    `;
+                    dom.modalDetailBitacoraList.appendChild(div);
+                });
+            } else {
+                dom.modalDetailBitacoraList.innerHTML = '<div class="text-hipo-textMuted text-[10px]">Sin eventos registrados en la bitácora.</div>';
+            }
+
+            dom.horseDetailModal.classList.remove('hidden');
+        }
+
+        function showSection(sec) {
+            if ((currentRole === 'ordenanza' || currentRole === 'profe') && sec === 'finance') sec = 'dash';
+
+            const btns = [dom.navDash, dom.navCamion, dom.navOrdenanza, dom.navHorses, dom.navCampaigns, dom.navPeople, dom.navAgenda, dom.navFinance];
+            const secs = [dom.secDash, dom.secCamion, dom.secOrdenanza, dom.secHorses, dom.secCampaigns, dom.secPeople, dom.secAgenda, dom.secFinance];
+
+            btns.forEach(b => b.className = "flex flex-col items-center gap-0.5 text-hipo-textMuted text-[10px] font-bold py-1 px-1.5 rounded-lg");
+            secs.forEach(s => s.classList.add('hidden'));
+
+            if (sec === 'dash') { dom.navDash.classList.add('bottom-nav-active'); dom.secDash.classList.remove('hidden'); }
+            if (sec === 'camion') { dom.navCamion.classList.add('bottom-nav-active'); dom.secCamion.classList.remove('hidden'); }
+            if (sec === 'ordenanza') { dom.navOrdenanza.classList.add('bottom-nav-active'); dom.secOrdenanza.classList.remove('hidden'); }
+            if (sec === 'horses') { dom.navHorses.classList.add('bottom-nav-active'); dom.secHorses.classList.remove('hidden'); }
+            if (sec === 'campaigns') { dom.navCampaigns.classList.add('bottom-nav-active'); dom.secCampaigns.classList.remove('hidden'); }
+            if (sec === 'people') { dom.navPeople.classList.add('bottom-nav-active'); dom.secPeople.classList.remove('hidden'); }
+            if (sec === 'agenda') { dom.navAgenda.classList.add('bottom-nav-active'); dom.secAgenda.classList.remove('hidden'); }
+            if (sec === 'finance') { dom.navFinance.classList.add('bottom-nav-active'); dom.secFinance.classList.remove('hidden'); }
+        }
+
+        function setHorseFilter(filter) {
+            currentFilter = filter;
+            dom.filterAllHorses.className = "py-1.5 rounded-lg font-bold " + (filter === 'all' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted');
+            dom.filterParticularHorses.className = "py-1.5 rounded-lg font-bold " + (filter === 'particular' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted');
+            dom.filterSchoolHorses.className = "py-1.5 rounded-lg font-bold " + (filter === 'escuela' ? 'bg-hipo-accent text-hipo-bg' : 'bg-hipo-bg text-hipo-textMuted');
+            dom.filterInactiveHorses.className = "py-1.5 rounded-lg font-bold " + (filter === 'inactive' ? 'bg-hipo-danger text-white' : 'bg-hipo-bg text-hipo-textMuted');
+            renderHorses();
+        }
+
+        function getVisibleHorses() {
+            let list = horses;
+            if (currentRole === 'client' && currentPersonaUser) {
+                list = horses.filter(h => h.ownerPersonaId == currentPersonaUser.id);
+            } else {
+                if (currentFilter === 'all') list = horses.filter(h => h.active);
+                if (currentFilter === 'particular') list = horses.filter(h => h.type === 'particular' && h.active);
+                if (currentFilter === 'escuela') list = horses.filter(h => h.type === 'escuela' && h.active);
+                if (currentFilter === 'inactive') list = horses.filter(h => !h.active);
+            }
+
+            if (isUrgentFilterActive) {
+                list = list.filter(h => h.active && h.shoeingDays <= 3);
+            }
+
+            const query = dom.searchHorse.value.toLowerCase().trim();
+            if (query) list = list.filter(h => h.name.toLowerCase().includes(query) || (h.owner && h.owner.toLowerCase().includes(query)));
+            return list;
+        }
+
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
