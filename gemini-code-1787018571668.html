@@ -1,0 +1,1394 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lo Arcaya Pro v6.6 - Club Ecuestre</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        hipo: {
+                            bg: '#0d1410',
+                            card: '#15201a',
+                            cardLight: '#23332a',
+                            accent: '#7a9e85',
+                            accentHover: '#5e7d67',
+                            border: '#2c3e33',
+                            textMuted: '#8a9e90',
+                            success: '#10b981',
+                            warning: '#f59e0b',
+                            danger: '#ef4444',
+                            purple: '#a855f7',
+                            blue: '#3b82f6'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0d1410; color: white; -webkit-tap-highlight-color: transparent; font-family: system-ui, -apple-system, sans-serif; }
+        .bottom-nav-active { color: #7a9e85 !important; border-top: 2px solid #7a9e85; background-color: rgba(122, 158, 133, 0.08); }
+        select, input, textarea { background-color: #0d1410 !important; border-color: #2c3e33 !important; color: white !important; }
+        .modal-backdrop { background-color: rgba(13, 20, 16, 0.92); backdrop-filter: blur(6px); }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.8) sepia(1) saturate(3) hue-rotate(90deg);
+            cursor: pointer; padding: 4px;
+        }
+    </style>
+</head>
+<body class="pb-20 pt-2 px-3 md:px-6 font-sans antialiased text-slate-100">
+
+    <div id="loginScreen" class="fixed inset-0 bg-hipo-bg z-50 flex items-center justify-center p-4">
+        <div class="bg-hipo-card w-full max-w-sm p-6 rounded-2xl border border-hipo-border space-y-4 shadow-2xl text-center">
+            <img src="logo.png" alt="Lo Arcaya" class="w-16 h-16 rounded-full object-cover mx-auto border-2 border-hipo-accent shadow-lg">
+            <div>
+                <h2 class="text-xl font-black text-white">Lo Arcaya</h2>
+                <span class="text-xs text-hipo-textMuted">Club Ecuestre • Acceso Privado</span>
+            </div>
+
+            <form id="loginForm" class="space-y-3 text-left">
+                <div>
+                    <label class="block text-xs text-hipo-textMuted mb-1 font-bold">Perfil / Usuario</label>
+                    <select id="loginRole" class="w-full p-2.5 rounded-xl text-xs font-bold text-white border">
+                        <option value="admin">👑 Administrador</option>
+                        <option value="profe">🎓 Profesor</option>
+                        <option value="ordenanza">🧹 Ordenanza (Pesebrera)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-hipo-textMuted mb-1 font-bold">Contraseña</label>
+                    <input type="password" id="loginPass" placeholder="Ingresa tu clave" required class="w-full p-2.5 rounded-xl text-xs border">
+                </div>
+                <div id="loginError" class="text-hipo-danger text-[11px] font-bold hidden">❌ Usuario o contraseña incorrecta.</div>
+                <button type="submit" class="w-full bg-hipo-accent hover:bg-hipo-accentHover text-hipo-bg font-black py-3 rounded-xl text-xs transition-colors shadow-md">
+                    🔑 Ingresar al Club
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="appContainer" class="max-w-4xl mx-auto space-y-3 hidden">
+
+        <header class="bg-hipo-card p-3 rounded-2xl border border-hipo-border flex items-center justify-between shadow-lg">
+            <div class="flex items-center gap-3">
+                <img src="logo.png" alt="Lo Arcaya" class="w-10 h-10 rounded-full object-cover shadow-md shrink-0 border border-hipo-border/60">
+                <div>
+                    <div class="flex items-center gap-1.5">
+                        <h1 class="text-base font-black text-white tracking-tight leading-none">Lo Arcaya</h1>
+                        <span id="cloudStatus" class="w-2 h-2 rounded-full bg-hipo-success inline-block shadow-[0_0_8px_#10b981]"></span>
+                    </div>
+                    <span class="text-[10px] text-hipo-textMuted font-medium">Club Ecuestre • v6.6 Pro</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-1">
+                <button id="btnChangePassword" class="bg-hipo-cardLight hover:bg-hipo-border text-white text-xs px-2.5 py-1.5 rounded-xl font-bold border border-hipo-border">
+                    🔑 Clave
+                </button>
+                <button id="btnLogout" class="bg-hipo-danger/25 text-hipo-danger border border-hipo-danger/40 text-xs px-2.5 py-1.5 rounded-xl font-bold flex items-center gap-1">
+                    <span>🚪</span> <span id="lblCurrentRoleText">Salir</span>
+                </button>
+            </div>
+        </header>
+
+        <div id="roleBanner" class="bg-hipo-accent/10 border border-hipo-accent/30 p-2.5 rounded-xl text-xs flex items-center justify-between">
+            <span id="roleBannerText" class="font-bold text-hipo-accent text-[11px]">👑 Modo Admin</span>
+            <span class="text-[9px] bg-hipo-accent text-hipo-bg font-extrabold px-2 py-0.5 rounded-md uppercase">SESIÓN ACTIVA</span>
+        </div>
+
+        <main id="secDash" class="space-y-3">
+            <div class="grid grid-cols-2 gap-2.5">
+                <div onclick="showSection('horses')" class="bg-hipo-card p-3 rounded-2xl border border-hipo-border cursor-pointer hover:border-hipo-accent transition-all">
+                    <span class="text-[10px] text-hipo-textMuted uppercase font-bold block">Caballos Activos</span>
+                    <span id="dashHorseCount" class="text-xl font-black text-white">...</span>
+                    <span class="text-[9px] text-hipo-accent block">Ver Cuadra &rarr;</span>
+                </div>
+                <div onclick="showSection('agenda')" class="bg-hipo-card p-3 rounded-2xl border border-hipo-border cursor-pointer hover:border-hipo-accent transition-all">
+                    <span class="text-[10px] text-hipo-textMuted uppercase font-bold block">Clases Hoy</span>
+                    <span id="dashClassCount" class="text-xl font-black text-white">...</span>
+                    <span class="text-[9px] text-hipo-success block">Ver Agenda &rarr;</span>
+                </div>
+                <div id="cardUrgentShoe" onclick="filterUrgentHorsesOnGrid()" class="bg-hipo-card p-3 rounded-2xl border border-hipo-border cursor-pointer hover:border-hipo-warning transition-all">
+                    <span class="text-[10px] text-hipo-textMuted uppercase font-bold block">Herrajes Urgentes</span>
+                    <span id="dashUrgentShoe" class="text-xl font-black text-hipo-warning">...</span>
+                    <span class="text-[9px] text-hipo-warning block">&le; 3 Días (Filtrar) &rarr;</span>
+                </div>
+                <div id="cardCampaigns" onclick="showSection('campaigns')" class="bg-hipo-card p-3 rounded-2xl border border-hipo-border cursor-pointer hover:border-hipo-purple transition-all">
+                    <span class="text-[10px] text-hipo-textMuted uppercase font-bold block">Campañas Activas</span>
+                    <span id="dashActiveCampaignsCount" class="text-xl font-black text-hipo-purple">...</span>
+                    <span class="text-[9px] text-hipo-purple block">Ver Sanitización &rarr;</span>
+                </div>
+            </div>
+
+            <div class="bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-2">
+                <h3 class="text-xs font-bold text-hipo-accent border-b border-hipo-border pb-1.5 flex items-center justify-between">
+                    <span>📅 Clases & Montas de Hoy</span>
+                    <button onclick="fetchCloudData()" class="text-[10px] bg-hipo-accent/20 text-hipo-accent px-2 py-0.5 rounded-md font-bold">🔄 Recargar</button>
+                </h3>
+                <div id="dashTodayClasses" class="space-y-2 text-xs"></div>
+            </div>
+
+            <div id="blockHealthAlertsContainer" class="bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-2">
+                <h3 class="text-xs font-bold text-hipo-warning border-b border-hipo-border pb-1.5 flex items-center justify-between">
+                    <span>⚠️ Alertas Sanitarias Urgentes</span>
+                </h3>
+                <div id="dashHealthAlerts" class="space-y-2 text-xs"></div>
+            </div>
+        </main>
+
+        <main id="secCamion" class="space-y-3 hidden">
+            <div class="flex justify-between items-center gap-2">
+                <h2 class="font-bold text-xs text-hipo-blue flex items-center gap-1.5">
+                    <span>🚚</span> Campeonatos y Logística de Camión
+                </h2>
+                <button id="btnOpenNewCampeonatoModal" class="bg-hipo-blue hover:bg-hipo-blue/80 text-white font-black px-3 py-2 rounded-xl text-xs shadow-md hidden">
+                    ➕ Crear Campeonato
+                </button>
+            </div>
+
+            <div id="campeonatosList" class="space-y-3"></div>
+        </main>
+
+        <main id="secCampaigns" class="space-y-3 hidden">
+            <div class="flex justify-between items-center gap-2">
+                <h2 class="font-bold text-xs text-hipo-accent flex items-center gap-1.5">
+                    <span>💉</span> Campañas Sanitarias Vigentes
+                </h2>
+                <button id="btnOpenNewCampaignModal" class="bg-hipo-accent hover:bg-hipo-accentHover text-hipo-bg font-black px-3 py-2 rounded-xl text-xs shadow-md">
+                    ➕ Crear Campaña
+                </button>
+            </div>
+
+            <div id="campaignsActiveList" class="space-y-3"></div>
+
+            <div class="pt-4 border-t border-hipo-border/60">
+                <button id="btnToggleHistoryCampaigns" class="w-full bg-hipo-card border border-hipo-border p-3 rounded-2xl text-xs font-bold text-hipo-textMuted flex items-center justify-between">
+                    <span>📜 Ver Historial de Campañas Completadas</span>
+                    <span id="lblHistoryCount" class="text-[10px] bg-hipo-bg px-2 py-0.5 rounded text-white">0</span>
+                </button>
+                <div id="campaignsHistoryList" class="space-y-3 mt-3 hidden"></div>
+            </div>
+        </main>
+
+        <main id="secOrdenanza" class="space-y-3 hidden">
+            <div class="bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-3">
+                <h2 class="font-bold text-xs text-hipo-accent flex items-center gap-1.5"><span>⏰</span> Programa de Monta Diaria (Hoy)</h2>
+                <div class="space-y-2" id="ordenanzaRidingList"></div>
+            </div>
+
+            <div class="bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-3">
+                <h2 class="font-bold text-xs text-hipo-warning flex items-center gap-1.5"><span>🌾</span> Pauta de Alimentación por Box</h2>
+                <div class="space-y-2" id="ordenanzaFeedList"></div>
+            </div>
+        </main>
+
+        <main id="secHorses" class="space-y-3 hidden">
+            <div class="flex justify-between items-center gap-2">
+                <div class="grid grid-cols-4 gap-1 bg-hipo-card p-1.5 rounded-xl border border-hipo-border text-[11px] flex-1">
+                    <button id="filterAllHorses" class="py-1.5 rounded-lg font-bold bg-hipo-accent text-hipo-bg">Todos</button>
+                    <button id="filterParticularHorses" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted">Particulares</button>
+                    <button id="filterSchoolHorses" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted">Escuela</button>
+                    <button id="filterInactiveHorses" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted">Inactivos</button>
+                </div>
+                <button id="btnOpenNewHorseModal" class="bg-hipo-accent hover:bg-hipo-accentHover text-hipo-bg font-black px-3 py-2.5 rounded-xl text-xs shrink-0 shadow-md">
+                    ➕ Nuevo
+                </button>
+            </div>
+
+            <input type="text" id="searchHorse" placeholder="🔍 Buscar caballo, dueño o filtro..." class="w-full p-2.5 rounded-xl text-xs border">
+            <div id="horsesGrid" class="space-y-3"></div>
+        </main>
+
+        <main id="secAgenda" class="space-y-3 hidden">
+            <button id="btnOpenClassModal" class="w-full bg-hipo-accent hover:bg-hipo-accentHover text-hipo-bg py-3 rounded-xl font-extrabold text-xs shadow-lg flex items-center justify-center gap-2">
+                <span>➕</span> Agendar Nueva Clase / Monta Libre
+            </button>
+
+            <div class="bg-hipo-card p-3 rounded-2xl border border-hipo-border space-y-2.5">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-hipo-accent flex items-center gap-1.5">
+                        <span>🗓️</span> Seleccionar Día:
+                    </span>
+                    <input type="date" id="classDatePicker" class="p-2 rounded-xl text-xs font-bold text-white border bg-hipo-bg shadow-inner cursor-pointer">
+                </div>
+                <div class="grid grid-cols-3 gap-1.5 text-[11px]">
+                    <button id="btnDayToday" class="py-1.5 rounded-xl font-bold bg-hipo-accent text-hipo-bg">Hoy</button>
+                    <button id="btnDayTomorrow" class="py-1.5 rounded-xl font-bold bg-hipo-bg text-hipo-textMuted border border-hipo-border">Mañana</button>
+                    <button id="btnDayAll" class="py-1.5 rounded-xl font-bold bg-hipo-bg text-hipo-textMuted border border-hipo-border">Ver Todas</button>
+                </div>
+            </div>
+
+            <div id="agendaList" class="space-y-2.5"></div>
+        </main>
+
+        <main id="secPeople" class="space-y-3 hidden">
+            <div class="flex justify-between items-center gap-2">
+                <div class="grid grid-cols-5 gap-1 bg-hipo-card p-1.5 rounded-xl border border-hipo-border text-[9px] flex-1">
+                    <button id="filterPeopleAll" class="py-1.5 rounded-lg font-bold bg-hipo-accent text-hipo-bg">Todos</button>
+                    <button id="filterPeopleProp" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted">Dueños</button>
+                    <button id="filterPeopleAlum" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted">Alumnos</button>
+                    <button id="filterPeopleApod" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted">Apoder.</button>
+                    <button id="filterPeopleStaff" class="py-1.5 rounded-lg font-bold bg-hipo-bg text-hipo-textMuted">Staff</button>
+                </div>
+                <button onclick="openPersonaModal()" class="bg-hipo-accent hover:bg-hipo-accentHover text-hipo-bg font-black px-3 py-2.5 rounded-xl text-xs shrink-0 shadow-md">
+                    ➕ Nueva Persona
+                </button>
+            </div>
+
+            <input type="text" id="searchPersona" placeholder="🔍 Buscar por nombre, RUT o teléfono..." class="w-full p-2.5 rounded-xl text-xs border">
+            <div id="personasGrid" class="space-y-2.5"></div>
+        </main>
+
+        <main id="secFinance" class="space-y-3 hidden">
+            <div class="bg-hipo-card p-3.5 rounded-2xl border border-hipo-border space-y-2">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h2 id="financeTitle" class="font-bold text-xs text-hipo-success">💰 Estado de Cuentas - Lo Arcaya</h2>
+                </div>
+                <div id="financeContent" class="space-y-2"></div>
+            </div>
+        </main>
+
+        <nav class="fixed bottom-0 left-0 right-0 bg-hipo-card/95 backdrop-blur-md border-t border-hipo-border py-1.5 px-1 flex items-center justify-around z-40">
+            <button id="navDash" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[9px] font-bold bottom-nav-active py-1 px-1 rounded-lg">
+                <span class="text-base">📊</span><span>Inicio</span>
+            </button>
+            <button id="navCamion" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[9px] font-bold py-1 px-1 rounded-lg">
+                <span class="text-base">🚚</span><span>Camión</span>
+            </button>
+            <button id="navOrdenanza" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[9px] font-bold py-1 px-1 rounded-lg">
+                <span class="text-base">🧹</span><span>Pesebrera</span>
+            </button>
+            <button id="navHorses" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[9px] font-bold py-1 px-1 rounded-lg">
+                <span class="text-base">🐎</span><span>Cuadra</span>
+            </button>
+            <button id="navCampaigns" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[9px] font-bold py-1 px-1 rounded-lg">
+                <span class="text-base">💉</span><span>Campañas</span>
+            </button>
+            <button id="navPeople" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[9px] font-bold py-1 px-1 rounded-lg">
+                <span class="text-base">👥</span><span>Personas</span>
+            </button>
+            <button id="navAgenda" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[9px] font-bold py-1 px-1 rounded-lg">
+                <span class="text-base">📅</span><span>Clases</span>
+            </button>
+            <button id="navFinance" class="flex flex-col items-center gap-0.5 text-hipo-textMuted text-[9px] font-bold py-1 px-1 rounded-lg">
+                <span class="text-base">💰</span><span>Cuentas</span>
+            </button>
+        </nav>
+
+        <div id="campeonatoModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-md rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 class="text-xs font-bold text-white">🏆 Crear Nuevo Campeonato / Concurso</h3>
+                    <button id="btnCloseCampeonatoModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+
+                <form id="campeonatoForm" class="space-y-2.5 text-xs">
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Nombre del Campeonato</label>
+                        <input type="text" id="campNombre" required placeholder="Ej: Concurso Oficial Clásico Primavera" class="w-full p-2 rounded-xl text-xs font-bold">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Fecha Inicio</label>
+                            <input type="date" id="campInicio" required class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Fecha Fin</label>
+                            <input type="date" id="campFin" required class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Ubicación / Club</label>
+                        <input type="text" id="campUbicacion" placeholder="Ej: Club de Polo San Cristóbal" class="w-full p-2 rounded-xl text-xs">
+                    </div>
+                    <button type="submit" class="w-full bg-hipo-blue text-white font-black p-2.5 rounded-xl text-xs shadow-md">
+                        ✔ Crear Campeonato
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div id="inscripcionModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-md rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 class="text-xs font-bold text-white">📝 Inscribir Participación en Prueba</h3>
+                    <button id="btnCloseInscripcionModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+
+                <form id="inscripcionForm" class="space-y-2.5 text-xs">
+                    <input type="hidden" id="inscripcionCampId">
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Jinete / Alumno</label>
+                        <select id="insJineteSelect" required class="w-full p-2.5 rounded-xl text-xs font-bold text-white border"></select>
+                    </div>
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Caballo Asignado</label>
+                        <select id="insCaballoSelect" required class="w-full p-2.5 rounded-xl text-xs font-bold text-hipo-accent border"></select>
+                    </div>
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Fecha de la Prueba</label>
+                        <input type="date" id="insFecha" required class="w-full p-2.5 rounded-xl text-xs font-bold border text-white bg-hipo-bg">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Prueba / Recorrido</label>
+                            <input type="text" id="insPrueba" required placeholder="Ej: Salto 1.10m" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Hora de Participación</label>
+                            <input type="text" id="insHora" required placeholder="Ej: 11:30 hrs" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-hipo-accent text-hipo-bg font-black p-2.5 rounded-xl text-xs shadow-md">
+                        ✔ Guardar Inscripción
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div id="viajeModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-md rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 class="text-xs font-bold text-white">🚚 Planificar Salida / Viaje de Camión</h3>
+                    <button id="btnCloseViajeModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+
+                <form id="viajeForm" class="space-y-2.5 text-xs">
+                    <input type="hidden" id="viajeCampId">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Fecha del Viaje</label>
+                            <input type="date" id="vFecha" required class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Hora Salida Club</label>
+                            <input type="text" id="vHora" required placeholder="Ej: 07:00 hrs" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Chofer Asignado</label>
+                        <input type="text" id="vChofer" placeholder="Nombre del chofer" class="w-full p-2 rounded-xl text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Seleccionar Caballos para este Viaje:</label>
+                        <div id="vCaballosChecklist" class="space-y-1 max-h-36 overflow-y-auto p-2 bg-hipo-bg rounded-xl border border-hipo-border text-[11px]"></div>
+                    </div>
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1">Observaciones / Ruta</label>
+                        <textarea id="vObs" rows="2" placeholder="Detalles de carga..." class="w-full p-2 rounded-xl text-xs"></textarea>
+                    </div>
+                    <button type="submit" class="w-full bg-hipo-blue text-white font-black p-2.5 rounded-xl text-xs shadow-md">
+                        💾 Guardar Viaje de Camión
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div id="changePasswordModal" class="fixed inset-0 modal-backdrop hidden z-[110] flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-sm rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 class="text-xs font-bold text-white">🔑 Cambiar Mi Contraseña</h3>
+                    <button id="btnCloseChangePasswordModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+
+                <form id="changePasswordForm" class="space-y-2.5 text-xs">
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Nueva Contraseña</label>
+                        <input type="password" id="newPasswordInput" required placeholder="Ingresa tu nueva clave" class="w-full p-2.5 rounded-xl text-xs font-bold border">
+                    </div>
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Confirmar Nueva Contraseña</label>
+                        <input type="password" id="confirmPasswordInput" required placeholder="Repite la clave" class="w-full p-2.5 rounded-xl text-xs font-bold border">
+                    </div>
+                    <button type="submit" class="w-full bg-hipo-accent text-hipo-bg font-black p-2.5 rounded-xl text-xs shadow-md">
+                        💾 Actualizar Mi Clave
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div id="campaignFullscreenModal" class="fixed inset-0 bg-hipo-bg z-[100] hidden flex flex-col p-3 md:p-6 overflow-hidden">
+            <div class="bg-hipo-card p-4 rounded-2xl border border-hipo-border shadow-2xl flex flex-col h-full space-y-3">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-3 shrink-0">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 id="fullCampTitle" class="text-base font-black text-white">Título Campaña</h2>
+                            <span id="fullCampTypeBadge" class="text-[9px] font-bold px-2 py-0.5 rounded uppercase">Tipo</span>
+                        </div>
+                        <span id="fullCampSubtitle" class="text-xs text-hipo-textMuted font-medium block mt-0.5">Fármaco y detalles</span>
+                    </div>
+                    <button id="btnCloseFullCampModal" class="bg-hipo-danger/25 hover:bg-hipo-danger/40 text-hipo-danger border border-hipo-danger/40 text-xs font-bold px-3 py-2 rounded-xl transition-all flex items-center gap-1 shadow">
+                        <span>✕</span> <span>Cerrar / Volver</span>
+                    </button>
+                </div>
+
+                <div id="fullCampProgressBlock" class="bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-1.5 shrink-0">
+                    <div class="flex justify-between text-xs font-bold">
+                        <span class="text-hipo-textMuted">Avance General:</span>
+                        <span id="fullCampProgressLabel" class="text-hipo-accent">0 / 0 (0%)</span>
+                    </div>
+                    <div class="w-full bg-hipo-card h-2.5 rounded-full overflow-hidden border border-hipo-border">
+                        <div id="fullCampProgressBar" class="bg-hipo-accent h-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <input type="text" id="searchFullCampHorse" placeholder="🔍 Buscar caballo, box o dueño en esta campaña..." class="w-full p-2.5 rounded-xl text-xs border shrink-0">
+
+                <div id="fullCampHorsesList" class="space-y-2 flex-1 overflow-y-auto pr-1"></div>
+            </div>
+        </div>
+
+        <div id="newCampaignModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-md rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 class="text-xs font-bold text-white">🚀 Crear Nueva Campaña Sanitaria</h3>
+                    <button id="btnCloseNewCampaignModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+
+                <form id="newCampaignForm" class="space-y-2.5 text-xs">
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Título de la Campaña</label>
+                        <input type="text" id="campTitle" required placeholder="Ej: Vacunación Influenza Agosto 2026" class="w-full p-2 rounded-xl text-xs font-bold">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Tipo Control</label>
+                            <select id="campType" class="w-full p-2 rounded-xl text-xs font-bold text-white border">
+                                <option value="vacuna">💉 Vacuna</option>
+                                <option value="desparasitante">🪱 Desparasitante</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Fármaco / Específico</label>
+                            <input type="text" id="campProduct" required placeholder="Ej: Influenza / Ivermectina" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Costo p/Caballo ($)</label>
+                            <input type="number" id="campCost" placeholder="Ej: 15000" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Próx. Refuerzo</label>
+                            <input type="date" id="campNextDate" required class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-hipo-accent text-hipo-bg font-black p-2.5 rounded-xl text-xs">
+                        ✔ Crear Campaña y Generar Lista de Trabajo
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div id="personaModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-md rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 id="personaModalTitle" class="text-xs font-bold text-white">👥 Registrar Persona</h3>
+                    <button id="btnClosePersonaModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+
+                <form id="personaForm" class="space-y-2.5 text-xs">
+                    <input type="hidden" id="personaId">
+
+                    <div>
+                        <label class="block text-hipo-accent mb-1 font-bold">Condición / Rol en el Club</label>
+                        <div class="grid grid-cols-2 gap-1.5 bg-hipo-bg p-2 rounded-xl border border-hipo-border">
+                            <label class="flex items-center gap-1 cursor-pointer text-[11px]">
+                                <input type="checkbox" id="chkEsPropietario" class="accent-hipo-accent"> 🏡 Dueño
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer text-[11px]">
+                                <input type="checkbox" id="chkEsAlumno" class="accent-hipo-accent"> 🎓 Alumno
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer text-[11px]">
+                                <input type="checkbox" id="chkEsApoderado" class="accent-hipo-accent"> 🛡️ Apoderado
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer text-[11px]">
+                                <input type="checkbox" id="chkEsStaff" class="accent-hipo-accent"> 🧑‍🔧 Staff
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="blockStaff" class="border-t border-hipo-border/60 pt-2 space-y-2 hidden">
+                        <span class="font-bold text-hipo-accent text-[11px] block">🧑‍🔧 Asignación de Cargo en Staff</span>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Cargo Específico</label>
+                            <select id="pCargoStaff" class="w-full p-2 rounded-xl text-xs font-bold text-white border">
+                                <option value="Ordenanza">🧹 Ordenanza</option>
+                                <option value="Profesor">🎓 Profesor</option>
+                                <option value="Herrero">🔨 Herrero</option>
+                                <option value="Veterinario">🩺 Veterinario</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="col-span-2">
+                            <label class="block text-hipo-textMuted mb-0.5 font-bold">Nombre Completo</label>
+                            <input type="text" id="pNombre" required placeholder="Ej: Jorge Fonck Mutter" class="w-full p-2 rounded-xl text-xs font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-0.5">RUT / ID</label>
+                            <input type="text" id="pRut" placeholder="12.345.678-9" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-0.5">Teléfono</label>
+                            <input type="text" id="pTelefono" placeholder="+56 9..." class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-hipo-textMuted mb-0.5">Email Facturación / Avisos</label>
+                            <input type="email" id="pEmail" placeholder="correo@ejemplo.com" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-hipo-accent mb-0.5 font-bold">🔑 Clave de Acceso App</label>
+                            <input type="text" id="pPassword" placeholder="Clave de usuario (Ej: socio123)" class="w-full p-2 rounded-xl text-xs border font-bold">
+                        </div>
+                    </div>
+
+                    <div id="blockPropietario" class="border-t border-hipo-border/60 pt-2 space-y-2">
+                        <span class="font-bold text-hipo-accent text-[11px] block">🏡 Datos de Propietario / Asignación de Caballos</span>
+                        
+                        <div class="bg-hipo-bg p-2 rounded-xl border border-hipo-border space-y-1.5">
+                            <div class="flex justify-between items-center">
+                                <label class="block text-hipo-textMuted text-[10px] font-bold">Caballos a su Nombre:</label>
+                                <button type="button" onclick="openInlineQuickHorseModal()" class="text-[9px] bg-hipo-accent/20 text-hipo-accent px-2 py-0.5 rounded font-bold">
+                                    ➕ Crear Caballo Rápido
+                                </button>
+                            </div>
+                            <div id="pCaballosChecklist" class="space-y-1 max-h-28 overflow-y-auto pr-1 text-[11px]"></div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Vet Cabecera</label>
+                                <select id="pVet" class="w-full p-2 rounded-xl text-xs font-bold text-white border"></select>
+                            </div>
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Límite Emergencia ($)</label>
+                                <input type="number" id="pMontoMax" placeholder="500000" class="w-full p-2 rounded-xl text-xs">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="blockAlumno" class="border-t border-hipo-border/60 pt-2 space-y-2">
+                        <span class="font-bold text-hipo-purple text-[11px] block">🎓 Datos de Alumno Escuela</span>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Nivel Hípico</label>
+                                <select id="pNivel" class="w-full p-2 rounded-xl text-xs font-bold text-white border">
+                                    <option value="Iniciación">Iniciación</option>
+                                    <option value="Intermedio">Intermedio</option>
+                                    <option value="Salto 1.10m+">Salto / Avanzado</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Profesor Asignado</label>
+                                <select id="pProfesor" class="w-full p-2 rounded-xl text-xs font-bold text-white border"></select>
+                            </div>
+                        </div>
+
+                        <div class="bg-hipo-bg p-2 rounded-xl border border-hipo-border space-y-1.5">
+                            <label class="flex items-center gap-1.5 cursor-pointer text-[11px] font-bold text-hipo-warning">
+                                <input type="checkbox" id="chkEsMenor" class="accent-hipo-warning"> ¿Es Menor de Edad?
+                            </label>
+
+                            <div id="blockApoderadoSelect" class="hidden pt-1 space-y-1">
+                                <div class="flex items-center justify-between">
+                                    <label class="block text-hipo-textMuted text-[10px]">Apoderado Responsable:</label>
+                                    <button type="button" onclick="openInlineQuickApoderadoModal()" class="text-[9px] bg-hipo-accent/20 text-hipo-accent px-2 py-0.5 rounded font-bold">
+                                        ➕ Crear Apoderado Rápido
+                                    </button>
+                                </div>
+                                <select id="pApoderadoId" class="w-full p-2 rounded-xl text-xs font-bold text-white border"></select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Ficha Médica / Alergias / Observaciones</label>
+                            <textarea id="pFichaMedica" rows="2" placeholder="Alergias, seguros o contacto médico..." class="w-full p-2 rounded-xl text-xs"></textarea>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-hipo-accent text-hipo-bg font-black p-2.5 rounded-xl text-xs mt-1">
+                        💾 Guardar Persona en la Nube
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div id="quickInlineModal" class="fixed inset-0 modal-backdrop hidden z-[60] flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-sm rounded-2xl border border-hipo-accent p-4 space-y-3 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-1.5">
+                    <h4 id="quickInlineTitle" class="text-xs font-bold text-hipo-accent">➕ Creación Rápida</h4>
+                    <button id="btnCloseQuickInlineModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+                <form id="quickInlineForm" class="space-y-2 text-xs">
+                    <input type="hidden" id="quickType">
+                    
+                    <div id="quickPersonFields" class="space-y-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-0.5 font-bold">Nombre Completo</label>
+                            <input type="text" id="qNombre" placeholder="Ej: Juan Pérez" class="w-full p-2 rounded-xl text-xs font-bold">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5">Teléfono</label>
+                                <input type="text" id="qTelefono" placeholder="+56 9..." class="w-full p-2 rounded-xl text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5">RUT / ID</label>
+                                <input type="text" id="qRut" placeholder="12.345.678-9" class="w-full p-2 rounded-xl text-xs">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="quickHorseFields" class="space-y-2 hidden">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-0.5 font-bold">Nombre del Caballo</label>
+                            <input type="text" id="qHorseName" placeholder="Ej: Sultan" class="w-full p-2 rounded-xl text-xs font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-0.5 font-bold">Box</label>
+                            <input type="text" id="qHorseBox" placeholder="Ej: Box 08" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-hipo-accent text-hipo-bg font-black p-2 rounded-xl text-xs mt-1">
+                        ✔ Crear y Vincular de Inmediato
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div id="horseDetailModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-md rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 id="modalDetailName" class="text-base font-black text-white">Nombre</h3>
+                            <span id="modalDetailStatusBadge" class="text-[9px] font-bold px-2 py-0.5 rounded">Activo</span>
+                        </div>
+                        <span id="modalDetailBox" class="text-xs text-hipo-accent font-bold">Box</span>
+                    </div>
+                    <button id="btnCloseHorseDetailModal" class="text-hipo-textMuted text-xl font-bold">&times;</button>
+                </div>
+
+                <div class="bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-1.5 text-xs">
+                    <span class="text-hipo-accent font-bold uppercase text-[10px] block border-b border-hipo-border/50 pb-1">📋 Ficha General & Morfometría</span>
+                    <div class="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                        <div><span class="text-hipo-textMuted block text-[10px]">Propietario:</span><strong id="modalDetailOwner" class="text-white text-xs">-</strong></div>
+                        <div><span class="text-hipo-textMuted block text-[10px]">Tipo:</span><strong id="modalDetailType" class="text-white text-xs uppercase">-</strong></div>
+                        <div><span class="text-hipo-textMuted block text-[10px]">📏 Alzada / Peso:</span><strong id="modalDetailMorpho" class="text-white text-xs">-</strong></div>
+                        <div><span class="text-hipo-textMuted block text-[10px]">Herrero Asignado:</span><strong id="modalDetailHerrero" class="text-white text-xs">-</strong></div>
+                    </div>
+                </div>
+
+                <div class="bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-2 text-xs">
+                    <div class="flex justify-between items-center border-b border-hipo-border/50 pb-1">
+                        <span class="text-hipo-warning font-bold uppercase text-[10px]">🩺 Clínica Sanitaria & Control</span>
+                        <button id="btnResetShoeTicket" class="text-[10px] bg-hipo-success/20 text-hipo-success border border-hipo-success/40 px-2 py-0.5 rounded font-bold">
+                            ✔ Herraje Realizado Hoy
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-[11px]">
+                        <div><span class="text-hipo-textMuted block text-[10px]">🛠️ Últ. Herraje:</span><strong id="modalDetailUltHerraje" class="text-white text-xs">-</strong></div>
+                        <div><span class="text-hipo-textMuted block text-[10px]">Próx. Herraje (+35d):</span><strong id="modalDetailShoeing" class="text-white text-xs">-</strong></div>
+                        <div><span class="text-hipo-textMuted block text-[10px]">💉 Próx. Vacuna:</span><strong id="modalDetailVacuna" class="text-hipo-success text-xs">-</strong></div>
+                        <div><span class="text-hipo-textMuted block text-[10px]">🪱 Próx. Desparasitación:</span><strong id="modalDetailDesparasitado" class="text-hipo-success text-xs">-</strong></div>
+                        <div class="col-span-2"><span class="text-hipo-textMuted block text-[10px]">🦷 Control Dientes (Semestral):</span><strong id="modalDetailDientes" class="text-hipo-success text-xs">-</strong></div>
+                    </div>
+                </div>
+
+                <div class="bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-2 text-xs">
+                    <span class="text-hipo-purple font-bold uppercase text-[10px] block border-b border-hipo-border/50 pb-1">🌾 Ración Diaria & Observaciones</span>
+                    <div class="space-y-1 text-hipo-textMuted text-[11px]">
+                        <div class="flex justify-between"><span>Mañana:</span><strong id="modalDetailFeedM" class="text-white">-</strong></div>
+                        <div class="flex justify-between"><span>Tarde:</span><strong id="modalDetailFeedT" class="text-white">-</strong></div>
+                        <div class="flex justify-between"><span>Noche:</span><strong id="modalDetailFeedN" class="text-white">-</strong></div>
+                    </div>
+                    <div class="border-t border-hipo-border/40 pt-1.5 mt-1">
+                        <span class="text-hipo-textMuted text-[10px] block font-bold">Notas de Manejo:</span>
+                        <p id="modalDetailNotes" class="text-slate-300 text-[11px] leading-relaxed mt-0.5">-</p>
+                    </div>
+                </div>
+
+                <div class="bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-2 text-xs">
+                    <span class="text-hipo-accent font-bold uppercase text-[10px] block border-b border-hipo-border/50 pb-1">📜 Bitácora e Historial de Eventos</span>
+                    <div id="modalDetailBitacoraList" class="space-y-1.5 max-h-32 overflow-y-auto pr-1"></div>
+                </div>
+
+                <div class="flex gap-2 pt-1">
+                    <button id="btnEditCurrentHorse" class="w-1/2 bg-hipo-warning/25 border border-hipo-warning/40 text-hipo-warning font-bold p-2.5 rounded-xl text-xs">
+                        ✏️ Editar Ficha Completa
+                    </button>
+                    <button id="btnCloseHorseDetailModalBottom" class="w-1/2 bg-hipo-cardLight text-white font-bold p-2.5 rounded-xl text-xs">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="horseFormModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-3">
+            <div class="bg-hipo-card w-full max-w-md rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 id="horseModalTitle" class="text-sm font-bold text-white">🐴 Agregar / Editar Ficha</h3>
+                    <button id="btnCloseHorseFormModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+
+                <form id="horseForm" class="space-y-2.5 text-xs">
+                    <input type="hidden" id="horseFormId">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Nombre del Caballo</label>
+                            <input type="text" id="hFormNombre" required placeholder="Ej: Zafiro" class="w-full p-2 rounded-xl text-xs border font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Box</label>
+                            <input type="text" id="hFormBox" placeholder="Ej: Box 05" required class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1">Estado</label>
+                            <select id="hFormEstado" class="w-full p-2 rounded-xl text-xs font-bold text-white border">
+                                <option value="true">Activo</option>
+                                <option value="false">Inactivo</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1">Tipo</label>
+                            <select id="hFormTipo" class="w-full p-2 rounded-xl text-xs">
+                                <option value="particular">Particular</option>
+                                <option value="escuela">Escuela</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="block text-hipo-textMuted font-bold">Propietario</label>
+                            <button type="button" onclick="openInlineQuickPropietarioModal()" class="text-[9px] bg-hipo-accent/20 text-hipo-accent px-2 py-0.5 rounded font-bold">
+                                ➕ Crear Propietario Rápido
+                            </button>
+                        </div>
+                        <select id="hFormPropietarioSelect" class="w-full p-2 rounded-xl text-xs font-bold text-white border"></select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1">Alzada (m)</label>
+                            <input type="text" id="hFormAlzada" placeholder="Ej: 1.68m" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1">Peso Estimado (kg)</label>
+                            <input type="text" id="hFormPeso" placeholder="Ej: 520kg" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                    </div>
+
+                    <div class="border-t border-hipo-border/60 pt-2">
+                        <span class="font-bold text-hipo-warning text-[11px] block mb-1">🩺 Clínica, Salud & Herraje</span>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Fecha Últ. Herraje</label>
+                                <input type="date" id="hFormUltHerraje" class="w-full p-2 rounded-xl text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Herrero Asignado</label>
+                                <select id="hFormHerrero" class="w-full p-2 rounded-xl text-xs font-bold text-white border"></select>
+                            </div>
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Próx. Vacuna</label>
+                                <input type="date" id="hFormProxVacuna" class="w-full p-2 rounded-xl text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Próx. Desparasitación</label>
+                                <input type="date" id="hFormProxDesparasitado" class="w-full p-2 rounded-xl text-xs">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-hipo-textMuted mb-0.5 text-[10px]">Próx. Control Dientes (Semestral)</label>
+                                <input type="date" id="hFormProxDientes" class="w-full p-2 rounded-xl text-xs">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-hipo-border/60 pt-2">
+                        <span class="font-bold text-hipo-purple text-[11px] block mb-1">🌾 Alimentación Diaria</span>
+                        <div class="space-y-1.5">
+                            <input type="text" id="hFormRacM" placeholder="Mañana (Ej: 1.5kg Pellet + 1/2 Fardo)" class="w-full p-2 rounded-xl text-xs">
+                            <input type="text" id="hFormRacT" placeholder="Tarde (Ej: 1.5kg Pellet)" class="w-full p-2 rounded-xl text-xs">
+                            <input type="text" id="hFormRacN" placeholder="Noche (Ej: 1/2 Fardo Pasto Miel)" class="w-full p-2 rounded-xl text-xs">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1">Notas de Manejo / Observaciones</label>
+                        <textarea id="hFormNotas" rows="2" placeholder="Observaciones especiales..." class="w-full p-2 rounded-xl text-xs"></textarea>
+                    </div>
+
+                    <button type="submit" id="btnSaveHorse" class="w-full bg-hipo-accent text-hipo-bg font-black p-2.5 rounded-xl text-xs hover:bg-hipo-accentHover transition-colors mt-2">
+                        💾 Guardar Ficha Completa en la Nube
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div id="classModal" class="fixed inset-0 modal-backdrop hidden z-50 flex items-center justify-center p-4">
+            <div class="bg-hipo-card w-full max-w-sm rounded-2xl border border-hipo-border p-4 space-y-3 shadow-2xl">
+                <div class="flex items-center justify-between border-b border-hipo-border pb-2">
+                    <h3 class="text-xs font-bold text-white">📅 Agendar Clase / Monta Libre</h3>
+                    <button id="btnCloseClassModal" class="text-hipo-textMuted text-lg font-bold">&times;</button>
+                </div>
+
+                <form id="classForm" class="space-y-2.5 text-xs">
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold text-hipo-accent">Fecha de la Clase</label>
+                        <input type="date" id="modalClassDate" required class="w-full p-2.5 rounded-xl text-xs font-bold border text-white bg-hipo-bg cursor-pointer">
+                    </div>
+
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Alumno / Jinete</label>
+                        <select id="modalStudentSelect" required class="w-full p-2.5 rounded-xl text-xs font-bold text-white border"></select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Hora</label>
+                            <select id="modalTime" class="w-full p-2 rounded-xl text-xs">
+                                <option value="15:00 hrs">15:00 hrs</option>
+                                <option value="16:00 hrs" selected>16:00 hrs</option>
+                                <option value="17:00 hrs">17:00 hrs</option>
+                                <option value="18:00 hrs">18:00 hrs</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-hipo-textMuted mb-1 font-bold">Modalidad / Profesor</label>
+                            <select id="modalProfe" class="w-full p-2 rounded-xl text-xs font-bold text-white border"></select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-hipo-textMuted mb-1 font-bold">Caballo</label>
+                        <select id="modalHorseSelect" class="w-full p-2 rounded-xl text-xs font-bold text-hipo-accent border"></select>
+                    </div>
+
+                    <button type="submit" id="btnSubmitClass" class="w-full bg-hipo-accent text-hipo-bg font-black p-2.5 rounded-xl text-xs hover:bg-hipo-accentHover transition-colors mt-1">
+                        ✓ Guardar Reserva
+                    </button>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://dvklysnihmioubsswxdw.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_4H8CuDflAdSxPSGdx3X4MQ_YQ-SbVPg";
+        const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const ROLES_PASS = { admin: "admin123", profe: "profe123", ordenanza: "pesebrera123" };
+        let currentRole = 'admin';
+        let currentPersonaUser = null;
+        let currentFilter = 'all';
+        let currentPeopleFilter = 'all';
+        let horses = [];
+        let classesList = [];
+        let campaigns = [];
+        let campaignDetailsMap = {};
+        let personas = [];
+        let campeonatos = [];
+        let campeonatoInscripciones = [];
+        let camionViajes = [];
+        let camionViajeCaballos = [];
+        let activeHorseId = null;
+        let activeCampaignFullscreenId = null;
+        let isUrgentFilterActive = false;
+
+        function getTodayStr() { return new Date().toISOString().split('T')[0]; }
+        let selectedAgendaDate = getTodayStr();
+
+        const dom = {
+            loginScreen: document.getElementById('loginScreen'),
+            loginForm: document.getElementById('loginForm'),
+            loginRole: document.getElementById('loginRole'),
+            loginPass: document.getElementById('loginPass'),
+            loginError: document.getElementById('loginError'),
+            appContainer: document.getElementById('appContainer'),
+            btnLogout: document.getElementById('btnLogout'),
+            btnChangePassword: document.getElementById('btnChangePassword'),
+            lblCurrentRoleText: document.getElementById('lblCurrentRoleText'),
+            roleBannerText: document.getElementById('roleBannerText'),
+            navDash: document.getElementById('navDash'),
+            navCamion: document.getElementById('navCamion'),
+            navOrdenanza: document.getElementById('navOrdenanza'),
+            navHorses: document.getElementById('navHorses'),
+            navCampaigns: document.getElementById('navCampaigns'),
+            navPeople: document.getElementById('navPeople'),
+            navAgenda: document.getElementById('navAgenda'),
+            navFinance: document.getElementById('navFinance'),
+            secDash: document.getElementById('secDash'),
+            secCamion: document.getElementById('secCamion'),
+            secOrdenanza: document.getElementById('secOrdenanza'),
+            secHorses: document.getElementById('secHorses'),
+            secCampaigns: document.getElementById('secCampaigns'),
+            secPeople: document.getElementById('secPeople'),
+            secAgenda: document.getElementById('secAgenda'),
+            secFinance: document.getElementById('secFinance'),
+            dashHorseCount: document.getElementById('dashHorseCount'),
+            dashClassCount: document.getElementById('dashClassCount'),
+            dashUrgentShoe: document.getElementById('dashUrgentShoe'),
+            dashActiveCampaignsCount: document.getElementById('dashActiveCampaignsCount'),
+            dashTodayClasses: document.getElementById('dashTodayClasses'),
+            dashHealthAlerts: document.getElementById('dashHealthAlerts'),
+            cardUrgentShoe: document.getElementById('cardUrgentShoe'),
+            cardCampaigns: document.getElementById('cardCampaigns'),
+            blockHealthAlertsContainer: document.getElementById('blockHealthAlertsContainer'),
+            ordenanzaRidingList: document.getElementById('ordenanzaRidingList'),
+            ordenanzaFeedList: document.getElementById('ordenanzaFeedList'),
+            horsesGrid: document.getElementById('horsesGrid'),
+            campaignsActiveList: document.getElementById('campaignsActiveList'),
+            campaignsHistoryList: document.getElementById('campaignsHistoryList'),
+            btnToggleHistoryCampaigns: document.getElementById('btnToggleHistoryCampaigns'),
+            lblHistoryCount: document.getElementById('lblHistoryCount'),
+            btnOpenNewCampaignModal: document.getElementById('btnOpenNewCampaignModal'),
+            newCampaignModal: document.getElementById('newCampaignModal'),
+            btnCloseNewCampaignModal: document.getElementById('btnCloseNewCampaignModal'),
+            newCampaignForm: document.getElementById('newCampaignForm'),
+            campTitle: document.getElementById('campTitle'),
+            campType: document.getElementById('campType'),
+            campProduct: document.getElementById('campProduct'),
+            campCost: document.getElementById('campCost'),
+            campNextDate: document.getElementById('campNextDate'),
+            campaignFullscreenModal: document.getElementById('campaignFullscreenModal'),
+            btnCloseFullCampModal: document.getElementById('btnCloseFullCampModal'),
+            fullCampTitle: document.getElementById('fullCampTitle'),
+            fullCampTypeBadge: document.getElementById('fullCampTypeBadge'),
+            fullCampSubtitle: document.getElementById('fullCampSubtitle'),
+            fullCampProgressLabel: document.getElementById('fullCampProgressLabel'),
+            fullCampProgressBar: document.getElementById('fullCampProgressBar'),
+            searchFullCampHorse: document.getElementById('searchFullCampHorse'),
+            fullCampHorsesList: document.getElementById('fullCampHorsesList'),
+            agendaList: document.getElementById('agendaList'),
+            financeContent: document.getElementById('financeContent'),
+            financeTitle: document.getElementById('financeTitle'),
+            filterAllHorses: document.getElementById('filterAllHorses'),
+            filterParticularHorses: document.getElementById('filterParticularHorses'),
+            filterSchoolHorses: document.getElementById('filterSchoolHorses'),
+            filterInactiveHorses: document.getElementById('filterInactiveHorses'),
+            searchHorse: document.getElementById('searchHorse'),
+            btnOpenNewHorseModal: document.getElementById('btnOpenNewHorseModal'),
+            horseFormModal: document.getElementById('horseFormModal'),
+            horseForm: document.getElementById('horseForm'),
+            horseModalTitle: document.getElementById('horseModalTitle'),
+            btnCloseHorseFormModal: document.getElementById('btnCloseHorseFormModal'),
+            btnSaveHorse: document.getElementById('btnSaveHorse'),
+            btnEditCurrentHorse: document.getElementById('btnEditCurrentHorse'),
+            hFormId: document.getElementById('horseFormId'),
+            hFormNombre: document.getElementById('hFormNombre'),
+            hFormBox: document.getElementById('hFormBox'),
+            hFormEstado: document.getElementById('hFormEstado'),
+            hFormTipo: document.getElementById('hFormTipo'),
+            hFormPropietarioSelect: document.getElementById('hFormPropietarioSelect'),
+            hFormAlzada: document.getElementById('hFormAlzada'),
+            hFormPeso: document.getElementById('hFormPeso'),
+            hFormUltHerraje: document.getElementById('hFormUltHerraje'),
+            hFormHerrero: document.getElementById('hFormHerrero'),
+            hFormProxVacuna: document.getElementById('hFormProxVacuna'),
+            hFormProxDesparasitado: document.getElementById('hFormProxDesparasitado'),
+            hFormProxDientes: document.getElementById('hFormProxDientes'),
+            hFormRacM: document.getElementById('hFormRacM'),
+            hFormRacT: document.getElementById('hFormRacT'),
+            hFormRacN: document.getElementById('hFormRacN'),
+            hFormNotas: document.getElementById('hFormNotas'),
+            btnOpenClassModal: document.getElementById('btnOpenClassModal'),
+            btnCloseClassModal: document.getElementById('btnCloseClassModal'),
+            classModal: document.getElementById('classModal'),
+            classForm: document.getElementById('classForm'),
+            modalClassDate: document.getElementById('modalClassDate'),
+            modalStudentSelect: document.getElementById('modalStudentSelect'),
+            modalTime: document.getElementById('modalTime'),
+            modalProfe: document.getElementById('modalProfe'),
+            modalHorseSelect: document.getElementById('modalHorseSelect'),
+            btnSubmitClass: document.getElementById('btnSubmitClass'),
+            classDatePicker: document.getElementById('classDatePicker'),
+            btnDayToday: document.getElementById('btnDayToday'),
+            btnDayTomorrow: document.getElementById('btnDayTomorrow'),
+            btnDayAll: document.getElementById('btnDayAll'),
+            horseDetailModal: document.getElementById('horseDetailModal'),
+            btnCloseHorseDetailModal: document.getElementById('btnCloseHorseDetailModal'),
+            btnCloseHorseDetailModalBottom: document.getElementById('btnCloseHorseDetailModalBottom'),
+            modalDetailName: document.getElementById('modalDetailName'),
+            modalDetailStatusBadge: document.getElementById('modalDetailStatusBadge'),
+            modalDetailBox: document.getElementById('modalDetailBox'),
+            modalDetailOwner: document.getElementById('modalDetailOwner'),
+            modalDetailType: document.getElementById('modalDetailType'),
+            modalDetailMorpho: document.getElementById('modalDetailMorpho'),
+            modalDetailHerrero: document.getElementById('modalDetailHerrero'),
+            modalDetailUltHerraje: document.getElementById('modalDetailUltHerraje'),
+            modalDetailShoeing: document.getElementById('modalDetailShoeing'),
+            modalDetailVacuna: document.getElementById('modalDetailVacuna'),
+            modalDetailDesparasitado: document.getElementById('modalDetailDesparasitado'),
+            modalDetailDientes: document.getElementById('modalDetailDientes'),
+            modalDetailFeedM: document.getElementById('modalDetailFeedM'),
+            modalDetailFeedT: document.getElementById('modalDetailFeedT'),
+            modalDetailFeedN: document.getElementById('modalDetailFeedN'),
+            modalDetailNotes: document.getElementById('modalDetailNotes'),
+            modalDetailBitacoraList: document.getElementById('modalDetailBitacoraList'),
+            btnResetShoeTicket: document.getElementById('btnResetShoeTicket'),
+            filterPeopleAll: document.getElementById('filterPeopleAll'),
+            filterPeopleProp: document.getElementById('filterPeopleProp'),
+            filterPeopleAlum: document.getElementById('filterPeopleAlum'),
+            filterPeopleApod: document.getElementById('filterPeopleApod'),
+            filterPeopleStaff: document.getElementById('filterPeopleStaff'),
+            searchPersona: document.getElementById('searchPersona'),
+            personasGrid: document.getElementById('personasGrid'),
+            personaModal: document.getElementById('personaModal'),
+            personaModalTitle: document.getElementById('personaModalTitle'),
+            btnClosePersonaModal: document.getElementById('btnClosePersonaModal'),
+            personaForm: document.getElementById('personaForm'),
+            personaId: document.getElementById('personaId'),
+            chkEsPropietario: document.getElementById('chkEsPropietario'),
+            chkEsAlumno: document.getElementById('chkEsAlumno'),
+            chkEsApoderado: document.getElementById('chkEsApoderado'),
+            chkEsStaff: document.getElementById('chkEsStaff'),
+            blockStaff: document.getElementById('blockStaff'),
+            pCargoStaff: document.getElementById('pCargoStaff'),
+            pNombre: document.getElementById('pNombre'),
+            pRut: document.getElementById('pRut'),
+            pTelefono: document.getElementById('pTelefono'),
+            pEmail: document.getElementById('pEmail'),
+            pPassword: document.getElementById('pPassword'),
+            pVet: document.getElementById('pVet'),
+            pMontoMax: document.getElementById('pMontoMax'),
+            blockPropietario: document.getElementById('blockPropietario'),
+            pCaballosChecklist: document.getElementById('pCaballosChecklist'),
+            blockAlumno: document.getElementById('blockAlumno'),
+            pNivel: document.getElementById('pNivel'),
+            pProfesor: document.getElementById('pProfesor'),
+            chkEsMenor: document.getElementById('chkEsMenor'),
+            blockApoderadoSelect: document.getElementById('blockApoderadoSelect'),
+            pApoderadoId: document.getElementById('pApoderadoId'),
+            pFichaMedica: document.getElementById('pFichaMedica'),
+            quickInlineModal: document.getElementById('quickInlineModal'),
+            btnCloseQuickInlineModal: document.getElementById('btnCloseQuickInlineModal'),
+            quickInlineForm: document.getElementById('quickInlineForm'),
+            quickInlineTitle: document.getElementById('quickInlineTitle'),
+            quickType: document.getElementById('quickType'),
+            quickPersonFields: document.getElementById('quickPersonFields'),
+            qNombre: document.getElementById('qNombre'),
+            qTelefono: document.getElementById('qTelefono'),
+            qRut: document.getElementById('qRut'),
+            quickHorseFields: document.getElementById('quickHorseFields'),
+            qHorseName: document.getElementById('qHorseName'),
+            qHorseBox: document.getElementById('qHorseBox'),
+            changePasswordModal: document.getElementById('changePasswordModal'),
+            btnCloseChangePasswordModal: document.getElementById('btnCloseChangePasswordModal'),
+            changePasswordForm: document.getElementById('changePasswordForm'),
+            newPasswordInput: document.getElementById('newPasswordInput'),
+            confirmPasswordInput: document.getElementById('confirmPasswordInput'),
+            btnOpenNewCampeonatoModal: document.getElementById('btnOpenNewCampeonatoModal'),
+            campeonatoModal: document.getElementById('campeonatoModal'),
+            btnCloseCampeonatoModal: document.getElementById('btnCloseCampeonatoModal'),
+            campeonatoForm: document.getElementById('campeonatoForm'),
+            campNombre: document.getElementById('campNombre'),
+            campInicio: document.getElementById('campInicio'),
+            campFin: document.getElementById('campFin'),
+            campUbicacion: document.getElementById('campUbicacion'),
+            inscripcionModal: document.getElementById('inscripcionModal'),
+            btnCloseInscripcionModal: document.getElementById('btnCloseInscripcionModal'),
+            inscripcionForm: document.getElementById('inscripcionForm'),
+            inscripcionCampId: document.getElementById('inscripcionCampId'),
+            insJineteSelect: document.getElementById('insJineteSelect'),
+            insCaballoSelect: document.getElementById('insCaballoSelect'),
+            insFecha: document.getElementById('insFecha'),
+            insPrueba: document.getElementById('insPrueba'),
+            insHora: document.getElementById('insHora'),
+            viajeModal: document.getElementById('viajeModal'),
+            btnCloseViajeModal: document.getElementById('btnCloseViajeModal'),
+            viajeForm: document.getElementById('viajeForm'),
+            viajeCampId: document.getElementById('viajeCampId'),
+            vFecha: document.getElementById('vFecha'),
+            vHora: document.getElementById('vHora'),
+            vChofer: document.getElementById('vChofer'),
+            vCaballosChecklist: document.getElementById('vCaballosChecklist'),
+            vObs: document.getElementById('vObs')
+        };
+
+        function calculateDaysRemaining(lastShoeDate) {
+            if (!lastShoeDate) return 30;
+            const last = new Date(lastShoeDate);
+            const next = new Date(last);
+            next.setDate(next.getDate() + 35);
+            const today = new Date();
+            return Math.ceil((next - today) / (1000 * 60 * 60 * 24));
+        }
+
+        async function populateLoginRoleDropdown() {
+            const { data: pData } = await db.from('personas').select('id, nombre').order('nombre', { ascending: true });
+            dom.loginRole.innerHTML = `
+                <option value="admin">👑 Administrador</option>
+                <option value="profe">🎓 Profesor</option>
+                <option value="ordenanza">🧹 Ordenanza (Pesebrera)</option>
+            `;
+            if (pData && pData.length > 0) {
+                const group = document.createElement('optgroup');
+                group.label = "👤 Socios, Alumnos & Apoderados";
+                pData.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = `persona_${p.id}`;
+                    opt.textContent = `🐴 ${p.nombre}`;
+                    group.appendChild(opt);
+                });
+                dom.loginRole.appendChild(group);
+            }
+        }
+
+        async function ensureAllActiveHorsesInActiveCampaigns() {
+            const activeCamps = campaigns.filter(c => c.estado === 'activa');
+            const activeHorses = horses.filter(h => h.active);
+
+            if (activeCamps.length === 0 || activeHorses.length === 0) return;
+
+            let missingEntries = [];
+            for (const c of activeCamps) {
+                const details = campaignDetailsMap[c.id] || [];
+                const registeredHorseIds = new Set(details.map(d => d.caballo_id));
+
+                for (const h of activeHorses) {
+                    if (!registeredHorseIds.has(h.id)) {
+                        missingEntries.push({ campana_id: c.id, caballo_id: h.id, aplicado: false });
+                    }
+                }
+            }
+
+            if (missingEntries.length > 0) {
+                const { error } = await db.from('campana_detalles').insert(missingEntries);
+                if (!error) {
+                    const { data: detData } = await db.from('campana_detalles').select('*, caballos(*)');
+                    if (detData) {
+                        campaignDetailsMap = {};
+                        detData.forEach(d => {
+                            if (!campaignDetailsMap[d.campana_id]) campaignDetailsMap[d.campana_id] = [];
+                            campaignDetailsMap[d.campana_id].push(d);
+                        });
+                    }
+                }
+            }
+        }
+
+        async function fetchCloudData() {
+            try {
+                const { data: pData } = await db.from('personas').select('*').order('nombre', { ascending: true });
+                if (pData) personas = pData;
+
+                const { data: cData } = await db.from('caballos').select('*').order('id', { ascending: true });
+                if (cData) {
+                    horses = cData.map(h => ({
+                        id: h.id,
+                        name: h.nombre,
+                        type: h.tipo,
+                        owner: h.propietario,
+                        ownerPersonaId: h.propietario_persona_id,
+                        box: h.box,
+                        active: h.activo !== false,
+                        ultHerraje: h.ult_herraje,
+                        shoeingDays: calculateDaysRemaining(h.ult_herraje),
+                        alzada: h.alzada || 'N/R',
+                        peso: h.peso_estimado || 'N/R',
+                        herreroNombre: h.herrero_nombre || 'Club',
+                        feedM: h.rac_manana,
+                        feedT: h.rac_tarde,
+                        feedN: h.rac_noche,
+                        notes: h.notas,
+                        balance: Number(h.saldo || 0),
+                        proxVacuna: h.prox_vacuna,
+                        proxDesparasitado: h.prox_desparasitado,
+                        proxDientes: h.prox_dientes
+                    }));
+                }
+
+                const { data: clData } = await db.from('clases').select('*').order('fecha', { ascending: true }).order('hora', { ascending: true });
+                if (clData) {
+                    classesList = clData.map(c => ({
+                        id: c.id,
+                        fecha: c.fecha || getTodayStr(),
+                        student: c.alumno,
+                        horse: c.caballo,
+                        box: c.box || 'Box',
+                        type: c.tipo,
+                        profe: c.profesor,
+                        time: c.hora,
+                        anulada: c.anulada === true,
+                        vistoProfe: c.visto_profe === true,
+                        vistoOrdenanza: c.visto_ordenanza === true
+                    }));
+                }
+
+                const { data: cmpData } = await db.from('campanas_sanitarias').select('*').order('id', { ascending: false });
+                if (cmpData) campaigns = cmpData;
+
+                const { data: detData } = await db.from('campana_detalles').select('*, caballos(*)');
+                if (detData) {
+                    campaignDetailsMap = {};
+                    detData.forEach(d => {
+                        if (!campaignDetailsMap[d.campana_id]) campaignDetailsMap[d.campana_id] = [];
+                        campaignDetailsMap[d.campana_id].push(d);
+                    });
+                }
+
+                const { data: champData } = await db.from('campeonatos').select('*').order('fecha_inicio', { ascending: false });
+                if (champData) campeonatos = champData;
+
+                const { data: inscData } = await db.from('campeonato_inscripciones').select('*');
+                if (inscData) campeonatoInscripciones = inscData;
+
+                const { data: viajesData } = await db.from('camion_viajes').select('*');
+                if (viajesData) camionViajes = viajesData;
+
+                const { data: vCabData } = await db.from('camion_viaje_caballos').select('*');
+                if (vCabData) camionViajeCaballos = vCabData;
+
+                await ensureAllActiveHorsesInActiveCampaigns();
+
+            } catch (err) { console.error("Error conectando a Supabase", err); }
+            renderAll();
+
+            if (activeCampaignFullscreenId) {
+                renderCampaignFullscreenContent(activeCampaignFullscreenId);
+            }
+        }
+
+        function init() {
+            populateLoginRoleDropdown();
+            setupEventListeners();
+            dom.classDatePicker.value = selectedAgendaDate;
+            window.addEventListener('focus', fetchCloudData);
+        }
+
+        function setupEventListeners() {
+            dom.loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const selectedVal = dom.loginRole.value;
+                const enteredPass = dom.loginPass.value.trim();
+
+                if (selectedVal.startsWith('persona_')) {
+                    const personId = Number(selectedVal.replace('persona_', ''));
+                    const pData = personas.find(p => p.id === personId);
+
+                    if (pData && (pData.password || 'socio123') === enteredPass) {
+                        currentRole = 'client';
+                        currentPersonaUser = pData;
+                        dom.loginError.classList.add('hidden');
+                        dom.loginScreen.classList.add('hidden');
+                        dom.appContainer.classList.remove('hidden');
+                        switchRole('client');
+                        fetchCloudData();
+                    } else {
+                        dom.loginError.classList.remove('hidden');
+                    }
+                } else {
+                    if (ROLES_PASS[selectedVal] === enteredPass) {
+                        currentRole = selectedVal;
+                        currentPersonaUser = null;
+                        dom.loginError.classList.add('hidden');
+                        dom.loginScreen.classList.add('hidden');
+                        dom.appContainer.classList.remove('hidden');
+                        switchRole(selectedVal);
+                        fetchCloudData();
+                    } else {
+                        dom.loginError.classList.remove('hidden');
+                    }
+                }
+            });
+
+            dom.btnLogout.addEventListener('click', () => {
+                dom.appContainer.classList.add('hidden');
+                dom.loginScreen.classList.remove('hidden');
+                dom.loginPass.value = '';
+                currentPersonaUser = null;
+                populateLoginRoleDropdown();
+            });
+
+            dom.btnChangePassword.addEventListener('click', () => {
+                dom.changePasswordForm.reset();
+                dom.changePasswordModal.classList.remove('hidden');
+            });
+            dom.btnCloseChangePasswordModal.addEventListener('click', () => dom.changePasswordModal.classList.add('hidden'));
+
+            dom.changePasswordForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const pass1 = dom.newPasswordInput.value.trim();
+                const pass2 = dom.confirmPasswordInput.value.trim();
+
+                if (pass1 !== pass2) {
+                    alert("⚠️ Las contraseñas no coinciden.");
+                    return;
+                }
+
+                if (currentRole === 'client' && currentPersonaUser) {
+                    const { error } = await db.from('personas').update({ password: pass1 }).eq('id', currentPersonaUser.id);
+                    if (error) { alert("Error actualizando clave: " + error.message); return; }
+                    alert("✔ Tu clave personal ha sido actualizada con éxito.");
+                } else {
+                    ROLES_PASS[currentRole] = pass1;
+                    alert(`✔ Clave del perfil ${currentRole.toUpperCase()} actualizada temporalmente para esta sesión.`);
+                }
+                dom.changePasswordModal.classList.add('hidden');
+            });
+
+            dom.btnCloseHorseDetailModal.addEventListener('click', () => dom.horseDetailModal.classList.add('hidden'));
+            dom.btnCloseHorseDetailModalBottom.addEventListener('click', () => dom.horseDetailModal.classList.add('hidden'));
+            dom.btnOpenNewHorseModal.addEventListener('click', () => openHorseFormModal(null));
+            dom.btnCloseHorseFormModal.addEventListener('click', () => dom.horseFormModal.classList.add('hidden'));
+
+            dom.btnEditCurrentHorse.addEventListener('click', () => {
+                dom.horseDetailModal.classList.add('hidden');
+                openHorseFormModal(activeHorseId);
+            });
+
+            dom.btnResetShoeTicket.addEventListener('click', async () => {
+                if (!activeHorseId) return;
+                const today = getTodayStr();
+                const h = horses.find(item => item.id === activeHorseId);
+
+                await db.from('caballos').update({ ult_herraje: today, dias_herraje: 35 }).eq('id', activeHorseId);
+                await db.from('bitacora_caballos').insert([{
+                    caballo_id: activeHorseId,
+                    tipo_evento: 'Herraje',
+                    detalle: 'Herraje realizado con éxito (+35 días reiniciados)',
+                    responsable: currentRole.toUpperCase()
+                }]);
+
+                alert(`✔ Herraje registrado hoy para ${h ? h.name : 'el caballo'}. Contador reiniciado a 35 días.`);
+                fetchCloudData();
+                openHorseDetail(activeHorseId);
+            });
+
+            dom.btnOpenNewCampaignModal.addEventListener('click', () => dom.newCampaignModal.classList.remove('hidden'));
+            dom.btnCloseNewCampaignModal.addEventListener('click', () => dom.newCampaignModal.classList.add('hidden'));
+
+            dom.btnCloseFullCampModal.addEventListener('click', closeCampaignFullscreenModal);
+            dom.searchFullCampHorse.addEventListener('input', () => {
+                if (activeCampaignFullscreenId) renderCampaignFullscreenContent(activeCampaignFullscreenId);
+            });
+
+            dom.btnToggleHistoryCampaigns.addEventListener('click', () => {
+                dom.campaignsHistoryList.classList.toggle('hidden');
+            });
+
+            dom.newCampaignForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const title = dom.campTitle.value.trim();
+                const typeVal = dom.campType.value;
+                const prod = dom.campProduct.value.trim();
+                const cost = Number(dom.campCost.value || 0);
+                const nextDate = dom.campNextDate.value;
+
+                const { data: c
