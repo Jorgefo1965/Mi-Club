@@ -2987,6 +2987,42 @@
         }
 
         window.addEventListener('DOMContentLoaded', init);
-    </script>
+    </script
+        <script>
+    // Asegurar que el formulario de campeonatos envíe los datos correctamente sin congelarse
+    document.getElementById('campeonatoForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const nombreVal = document.getElementById('campNombre').value.trim();
+        const inicioVal = document.getElementById('campInicio').value;
+        const finVal = document.getElementById('campFin').value;
+        const ubicacionVal = document.getElementById('campUbicacion').value.trim();
+
+        if (!nombreVal || !inicioVal || !finVal) {
+            alert("⚠️ Por favor completa el nombre y las fechas del campeonato.");
+            return;
+        }
+
+        const payload = {
+            nombre: nombreVal,
+            fecha_inicio: inicioVal,
+            fecha_fin: finVal,
+            ubicacion: ubicacionVal || 'Club Ecuestre',
+            estado: 'activo'
+        };
+
+        const { data, error } = await db.from('campeonatos').insert([payload]);
+        
+        if (error) {
+            alert("❌ Error al guardar en Supabase: " + error.message);
+            console.error("Supabase Error:", error);
+            return;
+        }
+
+        document.getElementById('campeonatoModal').classList.add('hidden');
+        document.getElementById('campeonatoForm').reset();
+        fetchCloudData();
+    });
+</script>
 </body>
 </html>
