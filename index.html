@@ -1301,15 +1301,8 @@
             }
 
             if (loginList && loginList.length > 0) {
-                // Ordenar: primero los que son staff, luego el resto alfabéticamente por nombre
-                const sortedPersonas = [...loginList].sort((a, b) => {
-                    const aStaff = a.es_staff ? 0 : 1;
-                    const bStaff = b.es_staff ? 0 : 1;
-                    if (aStaff !== bStaff) return aStaff - bStaff;
-                    return a.nombre.localeCompare(b.nombre);
-                });
-
-                sortedPersonas.forEach(p => {
+                // El orden lo define el servidor: administradores primero, luego staff, luego por nombre
+                loginList.forEach(p => {
                     let rolesDesc = [];
                     let icon = '👤'; 
 
@@ -1326,6 +1319,14 @@
                     opt.textContent = `${icon} ${p.nombre} (${rolesDesc.join(' + ')})`;
                     dom.loginRole.appendChild(opt);
                 });
+
+                // Se deja seleccionado el último usuario que entró en este dispositivo
+                try {
+                    const last = localStorage.getItem('miclub_ultimo_usuario');
+                    if (last && Array.from(dom.loginRole.options).some(o => o.value === last)) {
+                        dom.loginRole.value = last;
+                    }
+                } catch (e) { /* sin almacenamiento local: se usa el orden normal */ }
             }
         }
 
@@ -1842,6 +1843,7 @@
                     showLoginError('❌ Usuario o contraseña incorrecta.');
                     return;
                 }
+                try { localStorage.setItem('miclub_ultimo_usuario', selectedVal); } catch (e) { /* opcional */ }
                 await startSessionFromAuth(data.user);
             });
 
