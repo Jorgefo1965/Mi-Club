@@ -1014,7 +1014,25 @@
         let activeCampaignFullscreenId = null;
         let isUrgentFilterActive = false;
 
-        function getTodayStr() { return new Date().toISOString().split('T')[0]; }
+        function isOrdenanzaStaff() {
+            return currentRole === 'ordenanza' || !!(currentPersonaUser && currentPersonaUser.es_staff && currentPersonaUser.cargo_staff === 'Ordenanza');
+        }
+
+        function dateToLocalStr(d) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+        function parseLocalDate(str) {
+            const [y, m, d] = String(str).slice(0, 10).split('-').map(Number);
+            return new Date(y, m - 1, d);
+        }
+        function startOfToday() {
+            const t = new Date();
+            return new Date(t.getFullYear(), t.getMonth(), t.getDate());
+        }
+        function getTodayStr() { return dateToLocalStr(new Date()); }
         let selectedAgendaDate = getTodayStr();
 
         const dom = {
@@ -1236,29 +1254,24 @@
 
         function calculateDaysRemaining(lastShoeDate) {
             if (!lastShoeDate) return 30;
-            const last = new Date(lastShoeDate);
-            const next = new Date(last);
+            const next = parseLocalDate(lastShoeDate);
             next.setDate(next.getDate() + 35);
-            const today = new Date();
-            return Math.ceil((next - today) / (1000 * 60 * 60 * 24));
+            return Math.round((next - startOfToday()) / (1000 * 60 * 60 * 24));
         }
 
         function calculateNextShoeingDate(lastShoeDate) {
             if (!lastShoeDate) return 'Sin fecha';
-            const last = new Date(lastShoeDate);
-            const next = new Date(last);
+            const next = parseLocalDate(lastShoeDate);
             next.setDate(next.getDate() + 35);
-            return next.toISOString().split('T')[0];
+            return dateToLocalStr(next);
         }
 
         function calculateNextTeethDate(lastTeethDate) {
             if (!lastTeethDate) return 'Sin agendar';
-            const last = new Date(lastTeethDate);
-            const next = new Date(last);
+            const next = parseLocalDate(lastTeethDate);
             next.setMonth(next.getMonth() + 6);
-            const today = new Date();
-            const daysLeft = Math.ceil((next - today) / (1000 * 60 * 60 * 24));
-            return `En ${daysLeft} días (${next.toISOString().split('T')[0]})`;
+            const daysLeft = Math.round((next - startOfToday()) / (1000 * 60 * 60 * 24));
+            return `En ${daysLeft} días (${dateToLocalStr(next)})`;
         }
 
         async function populateLoginRoleDropdown() {
@@ -1595,16 +1608,7 @@
         };
 
         function updateHorseOptionsForInscripcionModal() {
-            dom.insCaballoSelect.innerHTML = '';
-            const allActiveHorses = horses.filter(h => h.active);
-
-            allActiveHorses.forEach(h => {
-                const opt = document.createElement('option');
-                opt.value = h.id;
-                let ownerText = h.type === 'escuela' ? 'Escuela' : `Particular (${h.owner || 'Dueño'})`;
-                opt.textContent = `${h.name} (${h.box || 'Box'}) - ${ownerText}`;
-                dom.insCaballoSelect.appendChild(opt);
-            });
+            fillHorseSelectForRider(dom.insCaballoSelect, dom.insJineteSelect.value, 'id');
         }
 
         window.openViajeModal = function(campId) {
@@ -1696,8 +1700,8 @@
         window.deleteCampeonato = async function(id) {
             if (currentRole !== 'admin') return;
             if (confirm("¿Eliminar este campeonato?")) {
-                campeonatos = campeonatos.filter(c => String(c.id) !== String(id));
-                try { await db.from('campeonatos').delete().eq('id', id); } catch(e){}
+                const { error } = await db.from('campeonatos').delete().eq('id', id);
+                if (error) alert("No se pudo eliminar el campeonato: " + error.message + "\n(Si tiene inscripciones o viajes, elimínalos primero.)");
                 fetchCloudData();
             }
         };
@@ -1705,8 +1709,8 @@
         window.deleteInscripcion = async function(id) {
             if (currentRole !== 'admin') return;
             if (confirm("¿Eliminar esta inscripción?")) {
-                campeonatoInscripciones = campeonatoInscripciones.filter(i => String(i.id) !== String(id));
-                try { await db.from('campeonato_inscripciones').delete().eq('id', id); } catch(e){}
+                const { error } = await db.from('campeonato_inscripciones').delete().eq('id', id);
+                if (error) alert("No se pudo eliminar la inscripción: " + error.message);
                 fetchCloudData();
             }
         };
@@ -1714,12 +1718,10 @@
         window.deleteViaje = async function(id) {
             if (currentRole !== 'admin') return;
             if (confirm("¿Eliminar esta salida de camión? Los caballos asignados quedarán disponibles nuevamente.")) {
-                camionViajes = camionViajes.filter(v => String(v.id) !== String(id));
-                camionViajeCaballos = camionViajeCaballos.filter(vc => String(vc.viaje_id) !== String(id));
-                try {
-                    await db.from('camion_viaje_caballos').delete().eq('viaje_id', id);
-                    await db.from('camion_viajes').delete().eq('id', id);
-                } catch(e){}
+                const r1 = await db.from('camion_viaje_caballos').delete().eq('viaje_id', id);
+                if (r1.error) { alert("No se pudo quitar los caballos del viaje: " + r1.error.message); fetchCloudData(); return; }
+                const r2 = await db.from('camion_viajes').delete().eq('id', id);
+                if (r2.error) alert("No se pudo eliminar el viaje: " + r2.error.message);
                 fetchCloudData();
             }
         };
@@ -1739,6 +1741,7 @@
             dom.vFecha.addEventListener('change', updateViajeCaballosChecklist);
 
             dom.modalStudentSelect.addEventListener('change', () => {
+                updateHorseOptionsForSelectedStudent();
                 applyProfeAutoSelection();
             });
 
@@ -1837,13 +1840,15 @@
                 const today = getTodayStr();
                 const h = horses.find(item => item.id === activeHorseId);
 
-                await db.from('caballos').update({ ult_herraje: today, dias_herraje: 35 }).eq('id', activeHorseId);
-                await db.from('bitacora_caballos').insert([{
+                const upd = await db.from('caballos').update({ ult_herraje: today, dias_herraje: 35 }).eq('id', activeHorseId);
+                if (upd.error) { alert("Error al registrar el herraje: " + upd.error.message); return; }
+                const bit = await db.from('bitacora_caballos').insert([{
                     caballo_id: activeHorseId,
                     tipo_evento: 'Herraje',
                     detalle: 'Herraje realizado con éxito (+35 días reiniciados)',
                     responsable: currentPersonaUser ? currentPersonaUser.nombre : currentRole.toUpperCase()
                 }]);
+                if (bit.error) alert("El herraje se guardó, pero falló la bitácora: " + bit.error.message);
 
                 alert(`✔ Herraje registrado hoy para ${h ? h.name : 'el caballo'}. Contador reiniciado a 35 días.`);
                 fetchCloudData();
@@ -1855,13 +1860,15 @@
                 const today = getTodayStr();
                 const h = horses.find(item => item.id === activeHorseId);
 
-                await db.from('caballos').update({ prox_dientes: today }).eq('id', activeHorseId);
-                await db.from('bitacora_caballos').insert([{
+                const upd = await db.from('caballos').update({ prox_dientes: today }).eq('id', activeHorseId);
+                if (upd.error) { alert("Error al registrar el control dental: " + upd.error.message); return; }
+                const bit = await db.from('bitacora_caballos').insert([{
                     caballo_id: activeHorseId,
                     tipo_evento: 'Control Dientes',
                     detalle: 'Control de dientes realizado hoy (+6 meses para próximo control)',
                     responsable: currentPersonaUser ? currentPersonaUser.nombre : currentRole.toUpperCase()
                 }]);
+                if (bit.error) alert("El control se guardó, pero falló la bitácora: " + bit.error.message);
 
                 alert(`✔ Control dental registrado hoy para ${h ? h.name : 'el caballo'}. Próximo control programado en 6 meses.`);
                 fetchCloudData();
@@ -2070,7 +2077,7 @@
                         nivel_hipico: dom.chkEsAlumno.checked ? dom.pNivel.value : null,
                         profesor_asignado: dom.chkEsAlumno.checked ? dom.pProfesor.value.trim() : null,
                         es_menor: dom.chkEsAlumno.checked ? dom.chkEsMenor.checked : false,
-                        apoderado_id: (dom.chkEsAlumno.checked && dom.chkEsMenor.checked) ? dom.pApoderadoId.value : null,
+                        apoderado_id: (dom.chkEsAlumno.checked && dom.chkEsMenor.checked && dom.pApoderadoId.value) ? Number(dom.pApoderadoId.value) : null,
                         ficha_medica: dom.chkEsAlumno.checked ? dom.pFichaMedica.value.trim() : null
                     };
                 }
@@ -2240,7 +2247,7 @@
             dom.btnDayTomorrow.addEventListener('click', () => {
                 const tom = new Date();
                 tom.setDate(tom.getDate() + 1);
-                selectedAgendaDate = tom.toISOString().split('T')[0];
+                selectedAgendaDate = dateToLocalStr(tom);
                 dom.classDatePicker.value = selectedAgendaDate;
                 highlightAgendaDayButtons('tomorrow');
                 renderAgenda();
@@ -2677,17 +2684,51 @@
             applyProfeAutoSelection();
         }
 
-        function updateHorseOptionsForSelectedStudent() {
-            dom.modalHorseSelect.innerHTML = '';
-            const allActiveHorses = horses.filter(h => h.active);
+        // Llena un <select> de caballos priorizando los del jinete elegido.
+        // valueKey: 'name' (clases) o 'id' (inscripciones)
+        function fillHorseSelectForRider(selectEl, riderName, valueKey) {
+            selectEl.innerHTML = '';
+            const activeHorses = horses.filter(h => h.active);
+            const rider = personas.find(p => p.nombre === riderName);
 
-            allActiveHorses.forEach(h => {
-                const opt = document.createElement('option');
-                opt.value = h.name;
-                let ownerText = h.type === 'escuela' ? 'Escuela' : `Particular (${h.owner || 'Dueño'})`;
-                opt.textContent = `${h.name} (${h.box || 'Box'}) - ${ownerText}`;
-                dom.modalHorseSelect.appendChild(opt);
+            // Prioridad: 1) caballos del jinete, 2) caballos de su apoderado (si es menor), 3) escuela, 4) resto
+            const ownIds = new Set();
+            const familyIds = new Set();
+            if (rider) {
+                activeHorses.forEach(h => {
+                    if (h.ownerPersonaId == rider.id) ownIds.add(h.id);
+                    else if (rider.apoderado_id && h.ownerPersonaId == rider.apoderado_id) familyIds.add(h.id);
+                });
+            }
+
+            const groups = [
+                { label: '⭐ Sus caballos', list: activeHorses.filter(h => ownIds.has(h.id)) },
+                { label: '👪 Caballos de su apoderado', list: activeHorses.filter(h => familyIds.has(h.id)) },
+                { label: '🏫 Caballos de escuela', list: activeHorses.filter(h => !ownIds.has(h.id) && !familyIds.has(h.id) && h.type === 'escuela') },
+                { label: '🐎 Otros caballos', list: activeHorses.filter(h => !ownIds.has(h.id) && !familyIds.has(h.id) && h.type !== 'escuela') }
+            ];
+
+            groups.forEach(g => {
+                if (g.list.length === 0) return;
+                const og = document.createElement('optgroup');
+                og.label = g.label;
+                g.list.forEach(h => {
+                    const opt = document.createElement('option');
+                    opt.value = valueKey === 'id' ? h.id : h.name;
+                    const ownerText = h.type === 'escuela' ? 'Escuela' : `Particular (${h.owner || 'Dueño'})`;
+                    opt.textContent = `${h.name} (${h.box || 'Box'}) - ${ownerText}`;
+                    og.appendChild(opt);
+                });
+                selectEl.appendChild(og);
             });
+
+            // Preseleccionar el primero de la lista (queda su propio caballo si tiene)
+            const firstOption = selectEl.querySelector('option');
+            if (firstOption) selectEl.value = firstOption.value;
+        }
+
+        function updateHorseOptionsForSelectedStudent() {
+            fillHorseSelectForRider(dom.modalHorseSelect, dom.modalStudentSelect.value, 'name');
         }
 
         function populateCaballosChecklistInPersonaModal(personId = null) {
@@ -2915,7 +2956,7 @@
             dom.ordenanzaFeedList.innerHTML = '';
             
             let feedHorses = horses.filter(h => h.active);
-            if (currentRole === 'client' && currentPersonaUser) {
+            if (currentRole === 'client' && currentPersonaUser && !isOrdenanzaStaff()) {
                 feedHorses = feedHorses.filter(h => h.ownerPersonaId == currentPersonaUser.id);
             }
 
@@ -2945,13 +2986,13 @@
 
         function renderDashboard() {
             let activeHorses = horses.filter(h => h.active);
-            if (currentRole === 'client' && currentPersonaUser) {
+            if (currentRole === 'client' && currentPersonaUser && !isOrdenanzaStaff()) {
                 activeHorses = activeHorses.filter(h => h.ownerPersonaId == currentPersonaUser.id);
             }
 
             let todayClasses = classesList.filter(c => c.fecha === getTodayStr() && !c.anulada);
 
-            if (currentRole === 'client' && currentPersonaUser) {
+            if (currentRole === 'client' && currentPersonaUser && !isOrdenanzaStaff()) {
                 let userNames = [currentPersonaUser.nombre];
                 const pupilos = personas.filter(p => p.apoderado_id == currentPersonaUser.id);
                 pupilos.forEach(p => userNames.push(p.nombre));
@@ -3083,7 +3124,7 @@
                         </button>`;
                     }
 
-                    if (currentRole === 'admin' || currentRole === 'ordenanza') {
+                    if (currentRole === 'admin' || isOrdenanzaStaff()) {
                         actionButtons += `<button onclick="toggleValidationCloud(${c.id}, 'visto_ordenanza', ${c.vistoOrdenanza})" class="text-[10px] ${c.vistoOrdenanza ? 'bg-hipo-success text-white font-extrabold' : 'bg-hipo-bg text-hipo-textMuted border border-hipo-border'} font-bold px-2.5 py-1 rounded-lg flex items-center gap-1">
                             <span>✔</span> <span>${c.vistoOrdenanza ? 'Confirmado Pesebrera' : 'Validar Ticket Pesebrera'}</span>
                         </button>`;
@@ -3333,7 +3374,7 @@
             const h = horses.find(item => item.id === id);
             if (!h) return;
 
-            if (currentRole === 'client' && currentPersonaUser && h.ownerPersonaId != currentPersonaUser.id) {
+            if (currentRole === 'client' && currentPersonaUser && !isOrdenanzaStaff() && h.ownerPersonaId != currentPersonaUser.id) {
                 alert("⚠️ No tienes autorización para ver la ficha de este caballo.");
                 return;
             }
@@ -3419,7 +3460,7 @@
         function getVisibleHorses() {
             let list = horses;
             
-            if (currentRole === 'admin' || currentRole === 'ordenanza') {
+            if (currentRole === 'admin' || isOrdenanzaStaff()) {
                 if (currentFilter === 'all') list = horses.filter(h => h.active);
                 if (currentFilter === 'particular') list = horses.filter(h => h.type === 'particular' && h.active);
                 if (currentFilter === 'escuela') list = horses.filter(h => h.type === 'escuela' && h.active);
