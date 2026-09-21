@@ -619,7 +619,7 @@
                         </div>
                         <div class="col-span-2" id="adminPasswordBlock">
                             <label class="block text-hipo-accent mb-0.5 font-bold">🔑 Clave de Acceso App</label>
-                            <input type="text" id="pPassword" placeholder="Clave de usuario (Ej: socio123)" class="w-full p-2 rounded-xl text-xs border font-bold">
+                            <input type="text" id="pPassword" autocomplete="off" placeholder="Mínimo 6 caracteres. Vacío = no cambiar la actual" class="w-full p-2 rounded-xl text-xs border font-bold">
                         </div>
                     </div>
 
@@ -995,7 +995,16 @@
         const SUPABASE_KEY = "sb_publishable_4H8CuDflAdSxPSGdx3X4MQ_YQ-SbVPg";
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const ROLES_PASS = { admin: "admin123", profe: "profe123", ordenanza: "pesebrera123" };
+        // Cada persona tiene un usuario interno en Supabase Auth con este email "técnico".
+        // La clave se valida en el servidor; aquí no hay ninguna contraseña guardada.
+        function personaEmail(personaId) { return `p${personaId}@miclub.local`; }
+
+        // Escapa texto antes de insertarlo en HTML (evita que un nombre o nota ejecute código)
+        function esc(value) {
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[ch]));
+        }
         let currentRole = 'client';
         let isAuthorizedTeacher = false; 
         let currentPersonaUser = null;
@@ -1274,19 +1283,26 @@
             return `En ${daysLeft} días (${dateToLocalStr(next)})`;
         }
 
-        async function populateLoginRoleDropdown() {
-            if (personas.length === 0) {
-                const { data: pAll } = await db.from('personas').select('*').order('nombre', { ascending: true });
-                if (pAll) personas = pAll;
-            }
-            
-            dom.loginRole.innerHTML = `
-                <option value="admin">👑 Administrador</option>
-            `;
+        function showLoginError(message) {
+            dom.loginError.textContent = message;
+            dom.loginError.classList.remove('hidden');
+        }
 
-            if (personas && personas.length > 0) {
+        async function populateLoginRoleDropdown() {
+            // La lista de usuarios viene de una función pública que solo entrega nombre y roles
+            // (sin RUT, teléfonos, saldos ni claves).
+            const { data: loginList, error } = await db.rpc('login_options');
+            dom.loginRole.innerHTML = '';
+
+            if (error) {
+                console.error('No se pudo cargar la lista de usuarios', error);
+                showLoginError('❌ No se pudo cargar la lista de usuarios. Revisa tu conexión o que el proyecto de Supabase esté activo.');
+                return;
+            }
+
+            if (loginList && loginList.length > 0) {
                 // Ordenar: primero los que son staff, luego el resto alfabéticamente por nombre
-                const sortedPersonas = [...personas].sort((a, b) => {
+                const sortedPersonas = [...loginList].sort((a, b) => {
                     const aStaff = a.es_staff ? 0 : 1;
                     const bStaff = b.es_staff ? 0 : 1;
                     if (aStaff !== bStaff) return aStaff - bStaff;
@@ -1314,6 +1330,7 @@
         }
 
         async function ensureAllActiveHorsesInActiveCampaigns() {
+            if (currentRole !== 'admin') return; // solo el admin puede completar las listas de campañas
             const activeCamps = campaigns.filter(c => c.estado === 'activa');
             const activeHorses = horses.filter(h => h.active);
 
@@ -1346,12 +1363,31 @@
             }
         }
 
-        async function fetchCloudData() {
-            try {
-                const { data: pData } = await db.from('personas').select('*').order('nombre', { ascending: true });
-                if (pData) personas = pData;
+        // Une la lista básica (visible para todos los socios) con las fichas completas
+        // a las que la persona tiene acceso (las suyas, o todas si es admin).
+        function mergeById(basicRows, fullRows) {
+            const map = new Map();
+            (basicRows || []).forEach(r => map.set(r.id, r));
+            (fullRows || []).forEach(r => map.set(r.id, r));
+            return [...map.values()];
+        }
 
-                const { data: cData } = await db.from('caballos').select('*').order('id', { ascending: true });
+        async function fetchCloudData() {
+            if (!currentPersonaUser) return; // sin sesión no se carga nada
+            let hadError = false;
+            const logError = (label, error) => { if (error) { hadError = true; console.error(`Error cargando ${label}:`, error); } };
+            try {
+                const [pubP, fullP, pubH, fullH] = await Promise.all([
+                    db.from('personas_publico').select('*'),
+                    db.from('personas').select('*'),
+                    db.from('caballos_publico').select('*'),
+                    db.from('caballos').select('*')
+                ]);
+                logError('personas', pubP.error || fullP.error);
+                logError('caballos', pubH.error || fullH.error);
+
+                personas = mergeById(pubP.data, fullP.data).sort((a, b) => a.nombre.localeCompare(b.nombre));
+                const cData = mergeById(pubH.data, fullH.data).sort((a, b) => a.id - b.id);
                 if (cData) {
                     horses = cData.map(h => ({
                         id: h.id,
@@ -1378,7 +1414,21 @@
                     }));
                 }
 
-                const { data: clData } = await db.from('clases').select('*').order('fecha', { ascending: true }).order('hora', { ascending: true });
+                const [rClases, rCamps, rDet, rChamp, rIns, rViajes, rViajeCab] = await Promise.all([
+                    db.from('clases').select('*').order('fecha', { ascending: true }).order('hora', { ascending: true }),
+                    db.from('campanas_sanitarias').select('*').order('id', { ascending: false }),
+                    db.from('campana_detalles').select('*, caballos(*)'),
+                    db.from('campeonatos').select('*').order('fecha_inicio', { ascending: false }),
+                    db.from('campeonato_inscripciones').select('*'),
+                    db.from('camion_viajes').select('*').order('fecha_viaje', { ascending: false }),
+                    db.from('camion_viaje_caballos').select('*')
+                ]);
+                logError('clases', rClases.error);
+                logError('campañas', rCamps.error || rDet.error);
+                logError('campeonatos', rChamp.error || rIns.error);
+                logError('camión', rViajes.error || rViajeCab.error);
+
+                const clData = rClases.data;
                 if (clData) {
                     classesList = clData.map(c => ({
                         id: c.id,
@@ -1395,10 +1445,9 @@
                     }));
                 }
 
-                const { data: cmpData } = await db.from('campanas_sanitarias').select('*').order('id', { ascending: false });
-                if (cmpData) campaigns = cmpData;
+                if (rCamps.data) campaigns = rCamps.data;
 
-                const { data: detData } = await db.from('campana_detalles').select('*, caballos(*)');
+                const detData = rDet.data;
                 if (detData) {
                     campaignDetailsMap = {};
                     detData.forEach(d => {
@@ -1407,21 +1456,21 @@
                     });
                 }
 
-                const { data: champData } = await db.from('campeonatos').select('*').order('fecha_inicio', { ascending: false });
-                if (champData) campeonatos = champData;
-
-                const { data: insData } = await db.from('campeonato_inscripciones').select('*');
-                if (insData) campeonatoInscripciones = insData;
-
-                const { data: vData } = await db.from('camion_viajes').select('*').order('fecha_viaje', { ascending: false });
-                if (vData) camionViajes = vData;
-
-                const { data: vcData } = await db.from('camion_viaje_caballos').select('*');
-                if (vcData) camionViajeCaballos = vcData;
+                if (rChamp.data) campeonatos = rChamp.data;
+                if (rIns.data) campeonatoInscripciones = rIns.data;
+                if (rViajes.data) camionViajes = rViajes.data;
+                if (rViajeCab.data) camionViajeCaballos = rViajeCab.data;
 
                 await ensureAllActiveHorsesInActiveCampaigns();
 
-            } catch (err) { console.error("Error conectando a Supabase", err); }
+            } catch (err) { hadError = true; console.error("Error conectando a Supabase", err); }
+
+            // Semáforo junto al título: verde = todo cargó, rojo = hubo un error (ver consola F12)
+            const cloudDot = document.getElementById('cloudStatus');
+            if (cloudDot) {
+                cloudDot.classList.toggle('bg-hipo-success', !hadError);
+                cloudDot.classList.toggle('bg-hipo-danger', hadError);
+            }
             renderAll();
 
             if (activeCampaignFullscreenId) {
@@ -1429,11 +1478,38 @@
             }
         }
 
-        async function init() {
+        // Entra a la app con la persona que corresponde a un usuario de Supabase Auth
+        async function startSessionFromAuth(authUser) {
+            const { data: me, error } = await db.from('personas').select('*').eq('auth_user_id', authUser.id).maybeSingle();
+            if (error || !me) {
+                console.error('No se encontró la ficha de la persona para este usuario', error);
+                await db.auth.signOut();
+                showLoginError('❌ Tu usuario no está vinculado a una persona del club. Habla con el administrador.');
+                return false;
+            }
+
+            currentPersonaUser = me;
+            currentRole = me.es_admin === true ? 'admin' : 'client';
+            isAuthorizedTeacher = (me.es_staff && me.cargo_staff === 'Profesor');
+
+            dom.loginError.classList.add('hidden');
+            dom.loginScreen.classList.add('hidden');
+            dom.appContainer.classList.remove('hidden');
+            showSection('dash');
+            switchRole(currentRole);
             await fetchCloudData();
-            await populateLoginRoleDropdown();
+            return true;
+        }
+
+        async function init() {
             setupEventListeners();
             dom.classDatePicker.value = selectedAgendaDate;
+            await populateLoginRoleDropdown();
+
+            // Si ya había una sesión iniciada (por ejemplo al recargar la página), se retoma
+            const { data: { session } } = await db.auth.getSession();
+            if (session) await startSessionFromAuth(session.user);
+
             window.addEventListener('focus', fetchCloudData);
         }
 
@@ -1464,8 +1540,8 @@
                         htmlInscripciones += `
                             <div class="bg-hipo-bg p-2 rounded-xl border border-hipo-border flex justify-between items-center text-xs">
                                 <div>
-                                    <span class="font-bold text-white">${ins.jinete_nombre}</span> <span class="text-hipo-textMuted">en</span> <span class="font-bold text-hipo-accent">${ins.caballo_nombre}</span>
-                                    <div class="text-[10px] text-hipo-textMuted">Prueba: ${ins.prueba_recorrido || 'S/N'} • ${ins.fecha_prueba || ''} (${ins.hora_participacion || ''})</div>
+                                    <span class="font-bold text-white">${esc(ins.jinete_nombre)}</span> <span class="text-hipo-textMuted">en</span> <span class="font-bold text-hipo-accent">${esc(ins.caballo_nombre)}</span>
+                                    <div class="text-[10px] text-hipo-textMuted">Prueba: ${esc(ins.prueba_recorrido || 'S/N')} • ${esc(ins.fecha_prueba || '')} (${esc(ins.hora_participacion || '')})</div>
                                 </div>
                                 ${currentRole === 'admin' ? `<button onclick="deleteInscripcion(${ins.id})" class="text-hipo-danger font-bold text-[10px] bg-hipo-danger/10 px-2 py-0.5 rounded border border-hipo-danger/20">✕</button>` : ''}
                             </div>
@@ -1484,7 +1560,7 @@
                             .map(vc => {
                                 if (vc.caballo_id) {
                                     const match = horses.find(h => String(h.id) === String(vc.caballo_id));
-                                    if (match) return `<span class="bg-hipo-card px-2 py-1 rounded-lg border border-hipo-border text-white font-black text-sm tracking-wide shadow-sm inline-block my-0.5">🐎 ${match.name} <span class="text-xs text-hipo-accent font-normal">(${match.box || 'Box'})</span></span>`;
+                                    if (match) return `<span class="bg-hipo-card px-2 py-1 rounded-lg border border-hipo-border text-white font-black text-sm tracking-wide shadow-sm inline-block my-0.5">🐎 ${esc(match.name)} <span class="text-xs text-hipo-accent font-normal">(${esc(match.box || 'Box')})</span></span>`;
                                 }
                                 return null;
                             })
@@ -1493,14 +1569,14 @@
                         htmlViajes += `
                             <div class="bg-hipo-bg p-3 rounded-xl border border-hipo-border space-y-2 text-xs">
                                 <div class="flex justify-between items-center border-b border-hipo-border/60 pb-1.5">
-                                    <span class="font-black text-sm text-hipo-accent">🚚 Salida: ${v.fecha_viaje} (${v.hora_salida})</span>
+                                    <span class="font-black text-sm text-hipo-accent">🚚 Salida: ${esc(v.fecha_viaje)} (${esc(v.hora_salida)})</span>
                                     ${currentRole === 'admin' ? `<button onclick="deleteViaje(${v.id})" class="text-hipo-danger font-bold text-[10px] bg-hipo-danger/10 px-2 py-1 rounded border border-hipo-danger/20">🗑️ Eliminar Viaje</button>` : ''}
                                 </div>
                                 <div>
                                     <span class="text-[10px] text-hipo-textMuted uppercase font-bold block mb-1">Caballos a Bordo (${vCaballos.length}):</span>
                                     <div class="flex flex-wrap gap-1.5">${vCaballos.length > 0 ? vCaballos.join(' ') : '<span class="text-hipo-warning italic">Ninguno seleccionado</span>'}</div>
                                 </div>
-                                ${v.observaciones ? `<div class="text-[11px] text-slate-300 italic pt-1 border-t border-hipo-border/40">Notas: ${v.observaciones}</div>` : ''}
+                                ${v.observaciones ? `<div class="text-[11px] text-slate-300 italic pt-1 border-t border-hipo-border/40">Notas: ${esc(v.observaciones)}</div>` : ''}
                             </div>
                         `;
                     });
@@ -1510,9 +1586,9 @@
                     <div class="flex justify-between items-start border-b border-hipo-border pb-2">
                         <div>
                             <h3 class="font-black text-sm text-white flex items-center gap-1.5">
-                                <span>🏆</span> ${camp.nombre}
+                                <span>🏆</span> ${esc(camp.nombre)}
                             </h3>
-                            <span class="text-[10px] text-hipo-textMuted">📍 ${camp.ubicacion || 'Ubicación por definir'} • Del ${camp.fecha_inicio} al ${camp.fecha_fin}</span>
+                            <span class="text-[10px] text-hipo-textMuted">📍 ${esc(camp.ubicacion || 'Ubicación por definir')} • Del ${esc(camp.fecha_inicio)} al ${esc(camp.fecha_fin)}</span>
                         </div>
                         ${currentRole === 'admin' ? `<button onclick="deleteCampeonato(${camp.id})" class="text-hipo-danger font-bold text-xs bg-hipo-danger/15 px-2 py-1 rounded-lg border border-hipo-danger/30">🗑️ Eliminar</button>` : ''}
                     </div>
@@ -1686,7 +1762,7 @@
                     label.className = "flex items-center gap-2 cursor-pointer text-xs text-white py-1.5 hover:bg-hipo-cardLight px-1.5 rounded-lg transition-colors border-b border-hipo-border/40";
                     label.innerHTML = `
                         <input type="checkbox" value="${hIdStr}" class="vHorseCheck accent-hipo-accent">
-                        <span><strong>${horseName}</strong> (${boxStr}) - <span class="text-hipo-accent">Inscrito por: ${insObj.jinete_nombre} (${insObj.prueba_recorrido || 'Prueba'})</span></span>
+                        <span><strong>${esc(horseName)}</strong> (${esc(boxStr)}) - <span class="text-hipo-accent">Inscrito por: ${esc(insObj.jinete_nombre)} (${esc(insObj.prueba_recorrido || 'Prueba')})</span></span>
                     `;
                     dom.vCaballosChecklist.appendChild(label);
                 }
@@ -1750,51 +1826,36 @@
                 const selectedVal = dom.loginRole.value;
                 const enteredPass = dom.loginPass.value.trim();
 
-                if (selectedVal === 'admin') {
-                    if (ROLES_PASS['admin'] === enteredPass) {
-                        currentRole = 'admin';
-                        isAuthorizedTeacher = false;
-                        currentPersonaUser = null;
-                        dom.loginError.classList.add('hidden');
-                        dom.loginScreen.classList.add('hidden');
-                        dom.appContainer.classList.remove('hidden');
-                        switchRole('admin');
-                        fetchCloudData();
-                    } else {
-                        dom.loginError.classList.remove('hidden');
-                    }
-                } else if (selectedVal.startsWith('persona_')) {
-                    const personId = Number(selectedVal.replace('persona_', ''));
-                    
-                    if (personas.length === 0) {
-                        const { data: pData } = await db.from('personas').select('*');
-                        if (pData) personas = pData;
-                    }
-                    
-                    const pData = personas.find(p => p.id === personId);
-
-                    if (pData && (pData.password || 'socio123') === enteredPass) {
-                        currentPersonaUser = pData;
-                        currentRole = 'client';
-                        isAuthorizedTeacher = (pData.es_staff && pData.cargo_staff === 'Profesor');
-
-                        dom.loginError.classList.add('hidden');
-                        dom.loginScreen.classList.add('hidden');
-                        dom.appContainer.classList.remove('hidden');
-                        switchRole(currentRole);
-                        fetchCloudData();
-                    } else {
-                        dom.loginError.classList.remove('hidden');
-                    }
+                if (!selectedVal.startsWith('persona_')) {
+                    showLoginError('❌ Elige tu usuario de la lista.');
+                    return;
                 }
+                const personId = Number(selectedVal.replace('persona_', ''));
+
+                // La clave se verifica en el servidor de Supabase; nunca se compara en el navegador
+                const { data, error } = await db.auth.signInWithPassword({
+                    email: personaEmail(personId),
+                    password: enteredPass
+                });
+
+                if (error || !data || !data.user) {
+                    showLoginError('❌ Usuario o contraseña incorrecta.');
+                    return;
+                }
+                await startSessionFromAuth(data.user);
             });
 
-            dom.btnLogout.addEventListener('click', () => {
+            dom.btnLogout.addEventListener('click', async () => {
+                await db.auth.signOut();
                 dom.appContainer.classList.add('hidden');
                 dom.loginScreen.classList.remove('hidden');
                 dom.loginPass.value = '';
                 currentPersonaUser = null;
+                currentRole = 'client';
                 isAuthorizedTeacher = false;
+                // Al salir se borran los datos cargados en memoria
+                personas = []; horses = []; classesList = []; campaigns = []; campaignDetailsMap = {};
+                campeonatos = []; campeonatoInscripciones = []; camionViajes = []; camionViajeCaballos = [];
                 populateLoginRoleDropdown();
             });
 
@@ -1814,14 +1875,14 @@
                     return;
                 }
 
-                if (currentPersonaUser) {
-                    const { error } = await db.from('personas').update({ password: pass1 }).eq('id', currentPersonaUser.id);
-                    if (error) { alert("Error actualizando clave: " + error.message); return; }
-                    alert("✔ Tu clave personal ha sido actualizada con éxito.");
-                } else {
-                    ROLES_PASS[currentRole] = pass1;
-                    alert(`✔ Clave del perfil actualizada temporalmente para esta sesión.`);
+                if (pass1.length < 6) {
+                    alert("⚠️ La contraseña debe tener al menos 6 caracteres.");
+                    return;
                 }
+
+                const { error } = await db.auth.updateUser({ password: pass1 });
+                if (error) { alert("Error actualizando clave: " + error.message); return; }
+                alert("✔ Tu clave personal ha sido actualizada con éxito.");
                 dom.changePasswordModal.classList.add('hidden');
             });
 
@@ -2054,6 +2115,19 @@
                 let payload = {};
                 const isRestrictedMode = (currentRole !== 'admin');
 
+                // La clave ya no se guarda en la tabla: se envía aparte y queda encriptada en Supabase Auth
+                const newPassword = isRestrictedMode ? '' : dom.pPassword.value.trim();
+                if (!isRestrictedMode) {
+                    if (!personId && newPassword.length < 6) {
+                        alert("⚠️ Define una clave de acceso de al menos 6 caracteres para la nueva persona.");
+                        return;
+                    }
+                    if (personId && newPassword && newPassword.length < 6) {
+                        alert("⚠️ La clave debe tener al menos 6 caracteres.");
+                        return;
+                    }
+                }
+
                 if (isRestrictedMode) {
                     payload = {
                         telefono: dom.pTelefono.value.trim(),
@@ -2066,7 +2140,6 @@
                         rut: dom.pRut.value.trim(),
                         telefono: dom.pTelefono.value.trim(),
                         email: dom.pEmail.value.trim(),
-                        password: dom.pPassword.value.trim() || 'socio123',
                         es_propietario: dom.chkEsPropietario.checked,
                         es_alumno: dom.chkEsAlumno.checked,
                         es_apoderado: dom.chkEsApoderado.checked,
@@ -2090,6 +2163,14 @@
                     const res = await db.from('personas').insert([payload]).select();
                     if (res.error) { alert("Error: " + res.error.message); return; }
                     if (res.data && res.data[0]) savedPersonId = res.data[0].id;
+                }
+
+                if (newPassword && savedPersonId) {
+                    const { error: pwError } = await db.rpc('admin_set_persona_password', {
+                        p_persona_id: Number(savedPersonId),
+                        p_password: newPassword
+                    });
+                    if (pwError) alert("La persona se guardó, pero no se pudo definir su clave: " + pwError.message);
                 }
 
                 if (currentRole === 'admin' && dom.chkEsPropietario.checked && savedPersonId) {
@@ -2144,7 +2225,6 @@
                         nombre: dom.qNombre.value.trim(),
                         telefono: dom.qTelefono.value.trim(),
                         rut: dom.qRut.value.trim(),
-                        password: 'socio123',
                         es_propietario: type === 'propietario',
                         es_apoderado: type === 'apoderado'
                     };
@@ -2291,30 +2371,43 @@
             });
         }
 
-        window.applyCampaignDose = async function(detailId, campId, horseObj, campObj) {
+        window.applyCampaignDose = async function(detailId, campId) {
             if (currentRole !== 'admin') {
                 alert("⚠️ Solo el administrador puede confirmar las vacunas y dosis en las campañas sanitarias.");
                 return;
             }
 
-            const nowIso = new Date().toISOString();
-            await db.from('campana_detalles').update({ aplicado: true, fecha_aplicacion: nowIso }).eq('id', detailId);
+            // Los datos se buscan por ID (no se pasan dentro del HTML)
+            const detail = (campaignDetailsMap[campId] || []).find(d => d.id == detailId);
+            const campObj = campaigns.find(c => c.id == campId);
+            if (!detail || !campObj) { alert("No se encontró la campaña o el caballo. Recarga la página."); return; }
+            const horseId = detail.caballo_id;
 
+            // Se lee el saldo actual desde la base justo antes de cobrar (evita usar un dato viejo)
+            const { data: freshHorse, error: readErr } = await db.from('caballos').select('saldo').eq('id', horseId).single();
+            if (readErr) { alert("Error leyendo el saldo del caballo: " + readErr.message); return; }
+
+            const horsePayload = campObj.tipo === 'vacuna'
+                ? { prox_vacuna: campObj.fecha_refuerzo }
+                : { prox_desparasitado: campObj.fecha_refuerzo };
             if (campObj.costo_por_caballo > 0) {
-                const currentBalance = Number(horseObj.balance || 0);
-                const newBalance = currentBalance - Number(campObj.costo_por_caballo);
-                await db.from('caballos').update({ saldo: newBalance }).eq('id', horseObj.id);
+                horsePayload.saldo = Number(freshHorse.saldo || 0) - Number(campObj.costo_por_caballo);
             }
 
-            let payloadDate = campObj.tipo === 'vacuna' ? { prox_vacuna: campObj.fecha_refuerzo } : { prox_desparasitado: campObj.fecha_refuerzo };
-            await db.from('caballos').update(payloadDate).eq('id', horseObj.id);
+            const horseUpd = await db.from('caballos').update(horsePayload).eq('id', horseId);
+            if (horseUpd.error) { alert("Error al actualizar el caballo: " + horseUpd.error.message); return; }
 
-            await db.from('bitacora_caballos').insert([{
-                caballo_id: horseObj.id,
+            const nowIso = new Date().toISOString();
+            const detUpd = await db.from('campana_detalles').update({ aplicado: true, fecha_aplicacion: nowIso }).eq('id', detailId);
+            if (detUpd.error) { alert("Se actualizó el caballo, pero falló marcar la dosis como aplicada: " + detUpd.error.message); return; }
+
+            const bit = await db.from('bitacora_caballos').insert([{
+                caballo_id: horseId,
                 tipo_evento: campObj.tipo === 'vacuna' ? 'Vacuna' : 'Desparasitante',
                 detalle: `Campaña: ${campObj.titulo} (${campObj.producto})`,
                 responsable: currentPersonaUser ? currentPersonaUser.nombre : currentRole.toUpperCase()
             }]);
+            if (bit.error) alert("La dosis se registró, pero falló la bitácora: " + bit.error.message);
 
             const { data: updatedDetails } = await db.from('campana_detalles').select('id, aplicado').eq('campana_id', campId);
             if (updatedDetails && updatedDetails.length > 0) {
@@ -2391,7 +2484,7 @@
                     actionBtnHtml = `<span class="bg-hipo-success/20 text-hipo-success font-black border border-hipo-success/40 text-xs px-3 py-1.5 rounded-xl flex items-center gap-1 shadow">✔ ${appliedDateStr}</span>`;
                 } else {
                     if (currentRole === 'admin') {
-                        actionBtnHtml = `<button onclick="applyCampaignDose(${d.id}, ${c.id}, ${JSON.stringify(h).replace(/"/g, '&quot;')}, ${JSON.stringify(c).replace(/"/g, '&quot;')})" class="bg-hipo-accent hover:bg-hipo-accentHover text-hipo-bg font-extrabold text-xs px-4 py-2 rounded-xl shadow-md transition-all active:scale-95">💉 Aplicar Dosis</button>`;
+                        actionBtnHtml = `<button onclick="applyCampaignDose(${d.id}, ${c.id})" class="bg-hipo-accent hover:bg-hipo-accentHover text-hipo-bg font-extrabold text-xs px-4 py-2 rounded-xl shadow-md transition-all active:scale-95">💉 Aplicar Dosis</button>`;
                     } else {
                         actionBtnHtml = `<span class="text-hipo-warning text-[10px] font-bold italic">Pendiente (Solo Admin)</span>`;
                     }
@@ -2399,8 +2492,8 @@
 
                 card.innerHTML = `
                     <div class="space-y-0.5">
-                        <strong class="text-white text-sm font-bold block">${h.box}: ${h.nombre}</strong>
-                        <span class="text-[11px] text-hipo-textMuted block">Dueño: <strong class="text-slate-200">${h.propietario || 'Escuela'}</strong></span>
+                        <strong class="text-white text-sm font-bold block">${esc(h.box)}: ${esc(h.nombre)}</strong>
+                        <span class="text-[11px] text-hipo-textMuted block">Dueño: <strong class="text-slate-200">${esc(h.propietario || 'Escuela')}</strong></span>
                     </div>
                     <div>${actionBtnHtml}</div>
                 `;
@@ -2442,11 +2535,11 @@
                     <div class="flex justify-between items-start border-b border-hipo-border pb-2">
                         <div>
                             <h3 class="font-black text-sm text-white flex items-center gap-1.5">
-                                <span>💉</span> ${c.titulo}
+                                <span>💉</span> ${esc(c.titulo)}
                             </h3>
-                            <span class="text-[10px] text-hipo-textMuted">Fármaco: <strong class="text-white">${c.producto}</strong> • Costo: $${Number(c.costo_por_caballo).toLocaleString('es-CL')}</span>
+                            <span class="text-[10px] text-hipo-textMuted">Fármaco: <strong class="text-white">${esc(c.producto)}</strong> • Costo: $${Number(c.costo_por_caballo).toLocaleString('es-CL')}</span>
                         </div>
-                        <span class="text-[9px] font-bold px-2 py-0.5 rounded ${c.tipo === 'vacuna' ? 'bg-hipo-accent/20 text-hipo-accent border border-hipo-accent/30' : 'bg-hipo-purple/20 text-hipo-purple border border-hipo-purple/30'} uppercase">${c.tipo}</span>
+                        <span class="text-[9px] font-bold px-2 py-0.5 rounded ${c.tipo === 'vacuna' ? 'bg-hipo-accent/20 text-hipo-accent border border-hipo-accent/30' : 'bg-hipo-purple/20 text-hipo-purple border border-hipo-purple/30'} uppercase">${esc(c.tipo)}</span>
                     </div>
 
                     <div class="space-y-1">
@@ -2478,8 +2571,8 @@
                 card.innerHTML = `
                     <div class="flex justify-between items-center border-b border-hipo-border/50 pb-1.5">
                         <div>
-                            <strong class="text-white font-bold text-xs block">${c.titulo}</strong>
-                            <span class="text-[10px] text-hipo-textMuted">Fármaco: ${c.producto} • Costo p/c: $${Number(c.costo_por_caballo).toLocaleString('es-CL')}</span>
+                            <strong class="text-white font-bold text-xs block">${esc(c.titulo)}</strong>
+                            <span class="text-[10px] text-hipo-textMuted">Fármaco: ${esc(c.producto)} • Costo p/c: $${Number(c.costo_por_caballo).toLocaleString('es-CL')}</span>
                         </div>
                         <span class="bg-hipo-success/20 text-hipo-success border border-hipo-success/30 text-[9px] font-bold px-2 py-0.5 rounded">✔ COMPLETADA</span>
                     </div>
@@ -2622,7 +2715,9 @@
         function populateJinetesDropdownInClassModal() {
             dom.modalStudentSelect.innerHTML = '<option value="">-- Seleccionar Jinete / Alumno --</option>';
             
-            const isPureClient = currentPersonaUser && !currentPersonaUser.es_staff && !currentPersonaUser.es_propietario;
+            // Solo el admin y los profesores pueden agendar por otras personas;
+            // el resto (socios, dueños, apoderados, otro staff) solo por sí mismos y sus pupilos.
+            const isPureClient = currentRole !== 'admin' && currentPersonaUser && !isAuthorizedTeacher;
 
             if (isPureClient && currentPersonaUser) {
                 dom.modalStudentSelect.disabled = false;
@@ -2744,8 +2839,8 @@
                 label.className = "flex items-center gap-2 cursor-pointer bg-hipo-card p-1.5 rounded-lg border border-hipo-border hover:border-hipo-accent transition-all";
                 label.innerHTML = `
                     <input type="checkbox" value="${h.id}" ${isChecked ? 'checked' : ''} class="accent-hipo-accent">
-                    <span class="text-white font-bold">${h.box}: ${h.name}</span>
-                    <span class="text-hipo-textMuted text-[9px] ml-auto">(${h.type})</span>
+                    <span class="text-white font-bold">${esc(h.box)}: ${esc(h.name)}</span>
+                    <span class="text-hipo-textMuted text-[9px] ml-auto">(${esc(h.type)})</span>
                 `;
                 dom.pCaballosChecklist.appendChild(label);
             });
@@ -2799,7 +2894,7 @@
                     dom.pRut.value = p.rut || '';
                     dom.pTelefono.value = p.telefono || '';
                     dom.pEmail.value = p.email || '';
-                    dom.pPassword.value = p.password || 'socio123';
+                    dom.pPassword.value = ''; // la clave actual no se puede ver; escribir aquí solo sirve para cambiarla
                     dom.chkEsPropietario.checked = p.es_propietario === true;
                     dom.chkEsAlumno.checked = p.es_alumno === true;
                     dom.chkEsApoderado.checked = p.es_apoderado === true;
@@ -2818,7 +2913,7 @@
                 if (currentRole !== 'admin') return;
                 dom.personaModalTitle.textContent = '👥 Registrar Nueva Persona';
                 dom.chkEsPropietario.checked = true;
-                dom.pPassword.value = 'socio123';
+                dom.pPassword.value = '';
                 populateCaballosChecklistInPersonaModal(null);
             }
 
@@ -2898,7 +2993,7 @@
                 if (p.es_propietario) badges += `<span class="bg-hipo-accent/20 text-hipo-accent text-[9px] font-bold px-2 py-0.5 rounded">🏡 Dueño</span> `;
                 if (p.es_alumno) badges += `<span class="bg-hipo-purple/20 text-hipo-purple text-[9px] font-bold px-2 py-0.5 rounded">🎓 Alumno</span> `;
                 if (p.es_apoderado) badges += `<span class="bg-hipo-warning/20 text-hipo-warning text-[9px] font-bold px-2 py-0.5 rounded">🛡️ Apoderado</span> `;
-                if (p.es_staff) badges += `<span class="bg-hipo-success/20 text-hipo-success text-[9px] font-bold px-2 py-0.5 rounded">🧑‍🔧 Staff (${p.cargo_staff || 'General'})</span>`;
+                if (p.es_staff) badges += `<span class="bg-hipo-success/20 text-hipo-success text-[9px] font-bold px-2 py-0.5 rounded">🧑‍🔧 Staff (${esc(p.cargo_staff || 'General')})</span>`;
 
                 let linkedHorses = horses.filter(h => h.ownerPersonaId == p.id);
                 let horsesStr = linkedHorses.length > 0 ? linkedHorses.map(h => h.name).join(', ') : 'Sin caballos registrados';
@@ -2909,15 +3004,15 @@
                 div.innerHTML = `
                     <div class="flex justify-between items-start border-b border-hipo-border pb-1.5">
                         <div>
-                            <strong class="text-white text-sm block">${p.nombre} ${currentRole !== 'admin' ? '(Tu Ficha)' : ''}</strong>
-                            <span class="text-[10px] text-hipo-textMuted">RUT: ${p.rut || 'N/R'} • Tel: ${p.telefono || 'N/R'} ${currentRole === 'admin' ? `• Clave: <strong class="text-hipo-accent">${p.password || 'socio123'}</strong>` : ''}</span>
+                            <strong class="text-white text-sm block">${esc(p.nombre)} ${currentRole !== 'admin' ? '(Tu Ficha)' : ''}</strong>
+                            <span class="text-[10px] text-hipo-textMuted">RUT: ${esc(p.rut || 'N/R')} • Tel: ${esc(p.telefono || 'N/R')} ${currentRole === 'admin' ? (p.auth_user_id ? '• 🔑 Con acceso' : '• ⚠️ Sin clave de acceso') : ''}</span>
                         </div>
                         <div class="flex gap-1 flex-wrap">${badges}</div>
                     </div>
                     <div class="text-[11px] text-hipo-textMuted space-y-0.5">
-                        ${p.es_propietario ? `<div>Caballos: <strong class="text-white">${horsesStr}</strong></div>` : ''}
-                        ${p.es_apoderado ? `<div>Pupilos a Cargo: <strong class="text-white">${pupilosStr || 'Ninguno asignado'}</strong></div>` : ''}
-                        ${p.es_alumno ? `<div>Nivel: <strong class="text-white">${p.nivel_hipico}</strong> (Profe: ${p.profesor_asignado || 'Club'})</div>` : ''}
+                        ${p.es_propietario ? `<div>Caballos: <strong class="text-white">${esc(horsesStr)}</strong></div>` : ''}
+                        ${p.es_apoderado ? `<div>Pupilos a Cargo: <strong class="text-white">${esc(pupilosStr || 'Ninguno asignado')}</strong></div>` : ''}
+                        ${p.es_alumno ? `<div>Nivel: <strong class="text-white">${esc(p.nivel_hipico)}</strong> (Profe: ${esc(p.profesor_asignado || 'Club')})</div>` : ''}
                     </div>
                 `;
                 dom.personasGrid.appendChild(div);
@@ -2940,14 +3035,14 @@
                 div.innerHTML = `
                     <div class="flex justify-between items-center">
                         <div>
-                            <span class="text-hipo-accent font-black text-xs">${c.time}</span>
-                            <span class="text-white font-bold block">${c.box}: ${c.horse}</span>
+                            <span class="text-hipo-accent font-black text-xs">${esc(c.time)}</span>
+                            <span class="text-white font-bold block">${esc(c.box)}: ${esc(c.horse)}</span>
                         </div>
-                        <span class="text-[10px] px-2 py-0.5 rounded font-bold ${c.type === 'Monta Libre' ? 'bg-hipo-accent/20 text-hipo-accent' : 'bg-hipo-purple/20 text-hipo-purple'}">${c.type}</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded font-bold ${c.type === 'Monta Libre' ? 'bg-hipo-accent/20 text-hipo-accent' : 'bg-hipo-purple/20 text-hipo-purple'}">${esc(c.type)}</span>
                     </div>
                     <div class="text-[11px] text-hipo-textMuted flex justify-between">
-                        <span>Jinete: <strong class="text-white">${c.student}</strong></span>
-                        <span>${c.profe}</span>
+                        <span>Jinete: <strong class="text-white">${esc(c.student)}</strong></span>
+                        <span>${esc(c.profe)}</span>
                     </div>
                 `;
                 dom.ordenanzaRidingList.appendChild(div);
@@ -2971,13 +3066,13 @@
                 div.onclick = () => openHorseDetail(h.id);
                 div.innerHTML = `
                     <div class="flex justify-between items-center border-b border-hipo-border/50 pb-1">
-                        <strong class="text-white font-bold">${h.box}: ${h.name}</strong>
-                        <span class="text-[10px] text-hipo-accent font-bold">${h.owner || 'Escuela'}</span>
+                        <strong class="text-white font-bold">${esc(h.box)}: ${esc(h.name)}</strong>
+                        <span class="text-[10px] text-hipo-accent font-bold">${esc(h.owner || 'Escuela')}</span>
                     </div>
                     <div class="text-[11px] text-hipo-textMuted space-y-0.5">
-                        <div>Mañana: <strong class="text-slate-200">${h.feedM || 'Normal'}</strong></div>
-                        <div>Tarde: <strong class="text-slate-200">${h.feedT || 'Normal'}</strong></div>
-                        <div>Noche: <strong class="text-slate-200">${h.feedN || 'Normal'}</strong></div>
+                        <div>Mañana: <strong class="text-slate-200">${esc(h.feedM || 'Normal')}</strong></div>
+                        <div>Tarde: <strong class="text-slate-200">${esc(h.feedT || 'Normal')}</strong></div>
+                        <div>Noche: <strong class="text-slate-200">${esc(h.feedN || 'Normal')}</strong></div>
                     </div>
                 `;
                 dom.ordenanzaFeedList.appendChild(div);
@@ -3013,8 +3108,8 @@
                 div.onclick = () => showSection('agenda');
                 div.innerHTML = `
                     <div>
-                        <strong class="text-white block">${c.time} • ${c.student}</strong>
-                        <span class="text-hipo-textMuted text-[10px]">Caballo: <strong class="text-white">${c.horse}</strong> (${c.profe})</span>
+                        <strong class="text-white block">${esc(c.time)} • ${esc(c.student)}</strong>
+                        <span class="text-hipo-textMuted text-[10px]">Caballo: <strong class="text-white">${esc(c.horse)}</strong> (${esc(c.profe)})</span>
                     </div>
                     <span class="text-[10px] font-bold px-2 py-0.5 rounded ${isValidated ? 'bg-hipo-success/20 text-hipo-success' : 'bg-hipo-warning/20 text-hipo-warning'}">${isValidated ? 'Validada' : 'Pendiente'}</span>
                 `;
@@ -3030,7 +3125,7 @@
                 div.onclick = () => openHorseDetail(h.id);
                 div.innerHTML = `
                     <div>
-                        <strong class="text-white block">${h.name} (${h.box})</strong>
+                        <strong class="text-white block">${esc(h.name)} (${esc(h.box)})</strong>
                         <span class="text-hipo-warning text-[10px]">Herraje urgente (${h.shoeingDays} días restantes)</span>
                     </div>
                     <span class="bg-hipo-warning/20 text-hipo-warning px-2 py-0.5 rounded text-[10px] font-bold">Ver &rarr;</span>
@@ -3056,10 +3151,10 @@
                 card.innerHTML = `
                     <div class="flex items-center justify-between border-b border-hipo-border pb-1.5">
                         <div>
-                            <h3 class="font-bold text-sm text-white">${h.name} ${!h.active ? '<span class="text-hipo-danger text-[9px]">(Inactivo)</span>' : ''}</h3>
-                            <span class="text-[10px] text-hipo-textMuted">${h.box} • Dueño: ${h.owner || 'Escuela'}</span>
+                            <h3 class="font-bold text-sm text-white">${esc(h.name)} ${!h.active ? '<span class="text-hipo-danger text-[9px]">(Inactivo)</span>' : ''}</h3>
+                            <span class="text-[10px] text-hipo-textMuted">${esc(h.box)} • Dueño: ${esc(h.owner || 'Escuela')}</span>
                         </div>
-                        <span class="bg-hipo-accent/20 text-hipo-accent border border-hipo-accent/30 px-2 py-0.5 rounded-full text-[9px] font-bold">${h.type}</span>
+                        <span class="bg-hipo-accent/20 text-hipo-accent border border-hipo-accent/30 px-2 py-0.5 rounded-full text-[9px] font-bold">${esc(h.type)}</span>
                     </div>
 
                     <div class="space-y-1 text-xs">
@@ -3131,7 +3226,7 @@
                     }
 
                     if (currentRole === 'admin' || isAssignedProfe || isMyOwnReservation) {
-                        actionButtons += `<button onclick="markAnuladaClass(${c.id}, '${c.student}')" class="text-[10px] bg-hipo-danger/20 text-hipo-danger border border-hipo-danger/30 font-bold px-2 py-1 rounded-lg">
+                        actionButtons += `<button onclick="markAnuladaClass(${c.id})" class="text-[10px] bg-hipo-danger/20 text-hipo-danger border border-hipo-danger/30 font-bold px-2 py-1 rounded-lg">
                             🗑️ Anular
                         </button>`;
                     }
@@ -3141,11 +3236,11 @@
                     <div class="flex justify-between items-start border-b border-hipo-border/40 pb-2">
                         <div>
                             <div class="flex items-center gap-2">
-                                <span class="text-xs font-black text-hipo-accent">${c.time}</span>
-                                <span class="text-[10px] text-hipo-textMuted bg-hipo-bg px-2 py-0.5 rounded border border-hipo-border">${c.fecha}</span>
+                                <span class="text-xs font-black text-hipo-accent">${esc(c.time)}</span>
+                                <span class="text-[10px] text-hipo-textMuted bg-hipo-bg px-2 py-0.5 rounded border border-hipo-border">${esc(c.fecha)}</span>
                             </div>
-                            <strong class="text-white text-xs block mt-0.5">${c.student}</strong>
-                            <span class="text-[11px] text-hipo-textMuted">Caballo: <strong class="text-white">${c.horse}</strong> (${c.profe})</span>
+                            <strong class="text-white text-xs block mt-0.5">${esc(c.student)}</strong>
+                            <span class="text-[11px] text-hipo-textMuted">Caballo: <strong class="text-white">${esc(c.horse)}</strong> (${esc(c.profe)})</span>
                         </div>
                         ${statusBadges}
                     </div>
@@ -3207,7 +3302,7 @@
 
                 let horseItems = entry.horses.map(h => `
                     <div class="flex justify-between items-center text-[11px] text-hipo-textMuted pl-2 border-l-2 border-hipo-border">
-                        <span>${h.box}: <strong class="text-white">${h.name}</strong> ${h.ownerPersonaId && h.ownerPersonaId != entry.persona.id ? '(Pupilo)' : ''}</span>
+                        <span>${esc(h.box)}: <strong class="text-white">${esc(h.name)}</strong> ${h.ownerPersonaId && h.ownerPersonaId != entry.persona.id ? '(Pupilo)' : ''}</span>
                         <span class="${h.balance < 0 ? 'text-hipo-danger font-bold' : 'text-slate-300'}">$${Math.abs(h.balance).toLocaleString('es-CL')}</span>
                     </div>
                 `).join('');
@@ -3215,7 +3310,7 @@
                 div.innerHTML = `
                     <div class="flex justify-between items-center border-b border-hipo-border/60 pb-1.5">
                         <div>
-                            <strong class="text-white text-sm font-bold block">${entry.persona.nombre}</strong>
+                            <strong class="text-white text-sm font-bold block">${esc(entry.persona.nombre)}</strong>
                             <span class="text-[10px] text-hipo-textMuted">${entry.horses.length} caballo(s) a cargo/cuenta</span>
                         </div>
                         <div class="text-right">
@@ -3262,7 +3357,7 @@
                 dom.lblCurrentRoleText.textContent = currentPersonaUser.nombre;
                 dom.roleBannerText.textContent = `🐴 Modo Socio (${titles.join(' + ')}): ${currentPersonaUser.nombre}`;
                 
-                if (dom.btnNewPersona) dom.btnNewPersona.classList.add('hidden');
+                if (dom.btnNewPersona) dom.btnNewPersona.classList.toggle('hidden', role !== 'admin');
             } else {
                 dom.lblCurrentRoleText.textContent = role.toUpperCase();
                 if (dom.btnNewPersona) dom.btnNewPersona.classList.remove('hidden');
@@ -3301,7 +3396,9 @@
             renderAll();
         }
 
-        window.markAnuladaClass = async function(classId, studentName) {
+        window.markAnuladaClass = async function(classId) {
+            const cls = classesList.find(c => c.id == classId);
+            const studentName = cls ? cls.student : '';
             if (confirm(`¿Estás seguro de marcar la reserva de "${studentName}" como ANULADA?`)) {
                 const { error } = await db.from('clases').update({ anulada: true }).eq('id', classId);
                 if (error) alert("Error: " + error.message);
@@ -3413,10 +3510,10 @@
                     div.className = "bg-hipo-card p-2 rounded-lg text-[10px] border border-hipo-border";
                     div.innerHTML = `
                         <div class="flex justify-between font-bold text-hipo-accent">
-                            <span>${b.tipo_evento} (${d})</span>
-                            <span class="text-hipo-textMuted">${b.responsable || 'Club'}</span>
+                            <span>${esc(b.tipo_evento)} (${d})</span>
+                            <span class="text-hipo-textMuted">${esc(b.responsable || 'Club')}</span>
                         </div>
-                        <p class="text-slate-200 mt-0.5">${b.detalle}</p>
+                        <p class="text-slate-200 mt-0.5">${esc(b.detalle)}</p>
                     `;
                     dom.modalDetailBitacoraList.appendChild(div);
                 });
