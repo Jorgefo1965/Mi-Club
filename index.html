@@ -1261,8 +1261,16 @@
             btnNewPersona: document.getElementById('btnNewPersona')
         };
 
+        // Texto para mostrar el estado del herraje de un caballo
+        function shoeingLabel(h) {
+            if (!h.ultHerraje) return 'Sin registro';
+            if (h.shoeingDays < 0) return `Vencido hace ${-h.shoeingDays} días (${h.nextShoeingDate})`;
+            if (h.shoeingDays === 0) return `Hoy (${h.nextShoeingDate})`;
+            return `En ${h.shoeingDays} días (${h.nextShoeingDate})`;
+        }
+
         function calculateDaysRemaining(lastShoeDate) {
-            if (!lastShoeDate) return 30;
+            if (!lastShoeDate) return 999; // sin fecha registrada: no se considera urgente
             const next = parseLocalDate(lastShoeDate);
             next.setDate(next.getDate() + 35);
             return Math.round((next - startOfToday()) / (1000 * 60 * 60 * 24));
@@ -1373,8 +1381,11 @@
             return [...map.values()];
         }
 
+        let lastFetchAt = 0;
+
         async function fetchCloudData() {
             if (!currentPersonaUser) return; // sin sesión no se carga nada
+            lastFetchAt = Date.now();
             let hadError = false;
             const logError = (label, error) => { if (error) { hadError = true; console.error(`Error cargando ${label}:`, error); } };
             try {
@@ -1511,7 +1522,10 @@
             const { data: { session } } = await db.auth.getSession();
             if (session) await startSessionFromAuth(session.user);
 
-            window.addEventListener('focus', fetchCloudData);
+            // Al volver a la pestaña se refrescan los datos, pero no más de una vez cada 15 segundos
+            window.addEventListener('focus', () => {
+                if (Date.now() - lastFetchAt > 15000) fetchCloudData();
+            });
         }
 
         function renderCamion() {
@@ -2024,6 +2038,32 @@
                 const caballoObj = horses.find(h => h.id === caballoIdVal);
                 const personaObj = personas.find(p => p.nombre === jineteName);
 
+                // Evita inscripciones repetidas o que choquen en el mismo campeonato, día y hora
+                const { data: sameDayIns } = await db.from('campeonato_inscripciones')
+                    .select('jinete_nombre, caballo_id, caballo_nombre, hora_participacion, prueba_recorrido')
+                    .eq('campeonato_id', Number(campId)).eq('fecha_prueba', fechaPrueba);
+                const existing = sameDayIns || campeonatoInscripciones.filter(i =>
+                    String(i.campeonato_id) === String(campId) && i.fecha_prueba === fechaPrueba);
+                const wantedHora = dom.insHora.value;
+                const wantedPrueba = dom.insPrueba.value;
+
+                const exactDuplicate = existing.find(i => i.jinete_nombre === jineteName
+                    && i.caballo_id === caballoIdVal && i.prueba_recorrido === wantedPrueba);
+                if (exactDuplicate) {
+                    alert(`⚠️ ${jineteName} ya está inscrito con ${exactDuplicate.caballo_nombre} en la prueba ${wantedPrueba} ese día.`);
+                    return;
+                }
+                const horseClash = existing.find(i => i.caballo_id === caballoIdVal && i.hora_participacion === wantedHora);
+                if (horseClash) {
+                    alert(`⚠️ ${horseClash.caballo_nombre} ya participa a las ${wantedHora} ese día (con ${horseClash.jinete_nombre}). Elige otra hora.`);
+                    return;
+                }
+                const riderClash = existing.find(i => i.jinete_nombre === jineteName && i.hora_participacion === wantedHora);
+                if (riderClash) {
+                    alert(`⚠️ ${jineteName} ya participa a las ${wantedHora} ese día (con ${riderClash.caballo_nombre}). Elige otra hora.`);
+                    return;
+                }
+
                 const payload = {
                     campeonato_id: Number(campId),
                     persona_id: personaObj ? personaObj.id : null,
@@ -2159,8 +2199,24 @@
 
                 let savedPersonId = personId;
                 if (personId) {
+                    const oldName = (personas.find(p => String(p.id) === String(personId)) || {}).nombre;
                     const res = await db.from('personas').update(payload).eq('id', personId);
                     if (res.error) { alert("Error: " + res.error.message); return; }
+
+                    // Si el admin cambió el nombre, se actualiza también donde ese nombre está copiado
+                    // (caballos, clases e inscripciones), para no perder el vínculo con su historial.
+                    const newName = payload.nombre;
+                    if (!isRestrictedMode && newName && oldName && newName !== oldName) {
+                        const renameErrors = [];
+                        const steps = [
+                            db.from('caballos').update({ propietario: newName }).eq('propietario_persona_id', Number(personId)),
+                            db.from('clases').update({ alumno: newName }).eq('alumno', oldName),
+                            db.from('clases').update({ profesor: `Prof. ${newName}` }).eq('profesor', `Prof. ${oldName}`),
+                            db.from('campeonato_inscripciones').update({ jinete_nombre: newName }).eq('jinete_nombre', oldName)
+                        ];
+                        (await Promise.all(steps)).forEach(r => { if (r.error) renameErrors.push(r.error.message); });
+                        if (renameErrors.length) alert("El nombre se cambió, pero no se pudo actualizar en todos los registros: " + renameErrors.join(' | '));
+                    }
                 } else {
                     const res = await db.from('personas').insert([payload]).select();
                     if (res.error) { alert("Error: " + res.error.message); return; }
@@ -2347,6 +2403,27 @@
                 const selectedHorseName = dom.modalHorseSelect.value;
                 
                 const horseObj = horses.find(h => h.name === selectedHorseName);
+
+                // Se revisan las reservas más recientes del día (por si otra persona agendó hace un momento)
+                const wantedDate = dom.modalClassDate.value;
+                const wantedTime = dom.modalTime.value;
+                const { data: sameDay, error: sameDayError } = await db.from('clases')
+                    .select('alumno, caballo, hora, anulada').eq('fecha', wantedDate);
+                const bookings = (sameDayError || !sameDay) ? classesList
+                    .filter(c => c.fecha === wantedDate)
+                    .map(c => ({ alumno: c.student, caballo: c.horse, hora: c.time, anulada: c.anulada })) : sameDay;
+                const activeAtThatTime = bookings.filter(c => !c.anulada && c.hora === wantedTime);
+
+                const horseTaken = activeAtThatTime.find(c => c.caballo === selectedHorseName);
+                if (horseTaken) {
+                    alert(`⚠️ ${selectedHorseName} ya está reservado el ${wantedDate} a las ${wantedTime} (${horseTaken.alumno}). Elige otra hora u otro caballo.`);
+                    return;
+                }
+                const riderBusy = activeAtThatTime.find(c => c.alumno === selectedStudentName);
+                if (riderBusy) {
+                    alert(`⚠️ ${selectedStudentName} ya tiene una reserva el ${wantedDate} a las ${wantedTime} (con ${riderBusy.caballo}). Elige otra hora.`);
+                    return;
+                }
 
                 dom.btnSubmitClass.disabled = true;
                 const selectedProfeVal = dom.modalProfe.value;
@@ -3128,7 +3205,7 @@
                 div.innerHTML = `
                     <div>
                         <strong class="text-white block">${esc(h.name)} (${esc(h.box)})</strong>
-                        <span class="text-hipo-warning text-[10px]">Herraje urgente (${h.shoeingDays} días restantes)</span>
+                        <span class="text-hipo-warning text-[10px]">Herraje urgente: ${shoeingLabel(h)}</span>
                     </div>
                     <span class="bg-hipo-warning/20 text-hipo-warning px-2 py-0.5 rounded text-[10px] font-bold">Ver &rarr;</span>
                 `;
@@ -3162,7 +3239,7 @@
                     <div class="space-y-1 text-xs">
                         <div class="flex justify-between text-hipo-textMuted text-[11px]">
                             <span>Herraje:</span>
-                            <strong class="${h.shoeingDays <= 3 ? 'text-hipo-warning font-black' : 'text-white'}">En ${h.shoeingDays} días (${h.nextShoeingDate})</strong>
+                            <strong class="${h.shoeingDays <= 3 ? 'text-hipo-warning font-black' : 'text-white'}">${shoeingLabel(h)}</strong>
                         </div>
                     </div>
 
@@ -3489,7 +3566,7 @@
             dom.modalDetailHerrero.textContent = h.herreroNombre || 'Club';
 
             dom.modalDetailUltHerraje.textContent = h.ultHerraje || 'Sin registro';
-            dom.modalDetailShoeing.textContent = `En ${h.shoeingDays} días (${h.nextShoeingDate})`;
+            dom.modalDetailShoeing.textContent = shoeingLabel(h);
             dom.modalDetailVacuna.textContent = h.proxVacuna || 'Sin agendar';
             dom.modalDetailDesparasitado.textContent = h.proxDesparasitado || 'Sin agendar';
             dom.modalDetailUltDientes.textContent = h.proxDientes || 'Sin registro';
